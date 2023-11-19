@@ -2,6 +2,16 @@
 main分支是整合分支
 其余分支以大家的名字来创建！
 
+## 创建自己的分支
+git checkout -b personal/huxiaowen
+git push origin personal/huxiaowen:personal/huxiaowen
+git push --set-upstream origin personal/huxiaowen 
+
+第一次上传代码可能需要使用--set-upstream选项
+
+
+
+
 ## 分支切换
 ![切换到main分支，main分支下的代码会出现](1700362143879.png)
 ![切换到个人分支，个人分支下的代码会出现](1700362191900.png)
