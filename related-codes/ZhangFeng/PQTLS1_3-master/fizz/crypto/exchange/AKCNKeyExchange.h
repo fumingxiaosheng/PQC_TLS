@@ -11,10 +11,12 @@ int pqcrystals_kyber768_90s_avx2_keypair(unsigned char* pk, unsigned char* sk);
 int pqcrystals_kyber768_90s_avx2_enc(unsigned char* ct, unsigned char* ss, const unsigned char* pk);
 int pqcrystals_kyber768_90s_avx2_dec(unsigned char* ss, const unsigned char* ct, const unsigned char* sk);
 }*/
+///宏定义主要是用于cpp文件中，调用mkem_keygen函数
 #define crypto_kem_keypair(pk, sk) mkem_keygen(pk, sk)
 #define crypto_kem_enc(ct, ss, pk) mkem_enc(pk, ss, ct)
 #define crypto_kem_dec(ss, ct, sk) mkem_dec(sk, ct, ss)
 
+///这里是外部函数吗？
 int mkem_keygen( unsigned char *pk, unsigned char *sk);
 int mkem_enc(const unsigned char *pk, unsigned char *ss, unsigned char *ct);
 int mkem_dec(const unsigned char *sk, const unsigned char *ct, unsigned char *ss);
@@ -34,6 +36,7 @@ public:
 	AKCNKeyExchange();
 	~AKCNKeyExchange() override
 	{    	
+		///依据是否是服务器，进行强制类型转化
    		if(isServer)
 		{
 			SrvInfo *p = (SrvInfo*)info;
@@ -51,6 +54,7 @@ public:
 
 	void setServer(bool is = false) override{isServer = is;}
 private:
+	///定义了两个结构体
 	typedef struct CltInfo
 	{
 		uint8_t sk[AKCN_SK_LEN];
