@@ -22,7 +22,7 @@ namespace test {
 constexpr ProtocolVersion TestProtocolVersion = ProtocolVersion::tls_1_3;
 
 template <typename SM, typename Actions>
-class ProtocolTest : public testing::Test {
+class ProtocolTest : public testing::Test {///继承自 Google Test（gtest）框架中的 testing::Test 类
  protected:
   using MutateState = folly::Function<void(typename SM::State&)>;
 

@@ -27,6 +27,7 @@ class X25519KeyExchange : public KeyExchange {
   std::unique_ptr<folly::IOBuf> generateSharedSecret(
       folly::ByteRange keyShare) override; //fzhang remove const
 
+  //这里少了setKeyPair和setPrivateKey的相关函数的声明
  private:
   constexpr static size_t kCurve25519PubBytes = 32;
   constexpr static size_t kCurve25519PrivBytes = 32;

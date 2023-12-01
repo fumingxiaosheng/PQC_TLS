@@ -11,7 +11,7 @@
 
 namespace fizz {
 template <>
-inline CipherSuite parse(folly::StringPiece s) {
+inline CipherSuite parse(folly::StringPiece s) { ///这是一种模板特化
   static const std::map<folly::StringPiece, CipherSuite> stringToCiphers = {
       {"TLS_AES_128_GCM_SHA256", CipherSuite::TLS_AES_128_GCM_SHA256},
       {"TLS_AES_256_GCM_SHA384", CipherSuite::TLS_AES_256_GCM_SHA384},
@@ -54,6 +54,7 @@ inline SignatureScheme parse(folly::StringPiece s) {
 
 template <>
 inline NamedGroup parse(folly::StringPiece s) {
+  ///stringToGroups是字符串到NamedGroup枚举值的映射表
   static const std::map<folly::StringPiece, NamedGroup> stringToGroups = {
       {"secp256r1", NamedGroup::secp256r1},{"secp384r1", NamedGroup::secp384r1}, 
       {"x25519", NamedGroup::x25519}, {"secp521r1", NamedGroup::secp521r1}, 

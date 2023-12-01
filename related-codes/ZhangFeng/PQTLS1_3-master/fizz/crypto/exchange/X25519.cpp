@@ -13,11 +13,13 @@
 #include <folly/Conv.h>
 #include <sodium.h>
 
+///TODO:在这里，对于libsodium库的依赖实现体现在了哪里呢？->依赖一个库，如何来实现相应的代码呢？
+
 using namespace folly;
 
 namespace fizz {
 
-void X25519KeyExchange::generateKeyPair() {
+void X25519KeyExchange::generateKeyPair() { ///生成Crve25519的公私钥对
   auto privKey = PrivKey();
   auto pubKey = PubKey();
   static_assert(
@@ -26,7 +28,7 @@ void X25519KeyExchange::generateKeyPair() {
   static_assert(
       X25519KeyExchange::PubKey().size() == crypto_scalarmult_BYTES,
       "Incorrect size of the public key");
-  auto err = crypto_box_curve25519xsalsa20poly1305_keypair(
+  auto err = crypto_box_curve25519xsalsa20poly1305_keypair( ///该函数用于生成 Curve25519 密钥对（公钥和私钥）。在这里，它被用于生成 X25519 密钥交换算法中的公钥和私钥。
       pubKey.data(), privKey.data());
   if (err != 0) {
     throw std::runtime_error(to<std::string>("Could not generate keys ", err));
@@ -53,7 +55,7 @@ std::unique_ptr<folly::IOBuf> X25519KeyExchange::generateSharedSecret(
   auto key = IOBuf::create(crypto_scalarmult_BYTES);
   key->append(crypto_scalarmult_BYTES);
   int err =
-      crypto_scalarmult(key->writableData(), privKey_->data(), keyShare.data());
+      crypto_scalarmult(key->writableData(), privKey_->data(), keyShare.data());///该函数用于计算 Curve25519 点乘法，生成共享密钥。在这里，它被用于生成 X25519 密钥交换算法中的共享密钥。
   if (err != 0) {
     throw std::runtime_error("Invalid point");
   }
