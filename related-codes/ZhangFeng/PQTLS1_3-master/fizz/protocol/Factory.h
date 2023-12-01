@@ -80,7 +80,7 @@ class Factory {
         return std::make_unique<X25519KeyExchange>();
       /******************************fzhang start******************************/
       case NamedGroup::kyber512: 
-        return std::make_unique<OQSKeyExchange<Kyber512>>();
+        return std::make_unique<OQSKeyExchange<Kyber512>>(); ///分配一个使用Kyber512实例化的OQSKeyExchange对象，并返回其指针
       case NamedGroup::kyber768: 
         return std::make_unique<OQSKeyExchange<Kyber768>>();
       case NamedGroup::kyber1024:

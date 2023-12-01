@@ -8,7 +8,7 @@
 using namespace folly;
 namespace fizz
 {
-template <class T> class OQSKeyExchange : public KeyExchange
+template <class T> class OQSKeyExchange : public KeyExchange ///定义了一个类模板但是存在的问题是这里T没有具体的含义
 {
 public:
 	OQSKeyExchange();
@@ -64,7 +64,11 @@ private:
 	}*/
 
 
-template <class T> OQSKeyExchange<T>::OQSKeyExchange()
+/*///
+template <class T>: 这是一个类模板的声明或定义的开头。它告诉编译器，接下来的代码中将使用一个模板参数 T
+OQSKeyExchange<T>::OQSKeyExchange()： 这是 OQSKeyExchange 类的默认构造函数的实现。OQSKeyExchange<T> 表示该类是一个模板类，其中 T 是模板参数。在默认构造函数的定义中，你可以使用模板参数 T 来声明变量、使用类型 T 的成员
+*/
+template <class T> OQSKeyExchange<T>::OQSKeyExchange()///代表的是默认构造函数的实现。
 {
 	if(T::OQS_ID >= OQS_KEM_alg_count())
 	{
