@@ -34,6 +34,19 @@ crypto_scalarmult()
 
 然后会定义每一个模板函数，模板函数中的T对应了后量子算法的名称和类型，进一步地，定义了T::OQS_ID来指示该后量子算法在liboqs中的编号，然后后调用liboqs中的函数来实现真正的功能，并将其进行封装传递给上层的统一接口。
 
+### AKCNKeyExchange类的实现
+todo:
+1.akcn的实现是否已经被封装在了一个库中呢？
+2.如果是自己实现的，那么应该如何进行调用呢？
+
+观察下图，比较重要的keygen、enc和dec函数并没有在代码中被实现，因此猜测其你可能在其他的库中被实例化了,gpt上说这是一个外部函数
+
+![Alt text](image-6.png)
+
+
+在最外层的CmakeLists.txt中，显示似乎这些支持应该是由自己提供的
+![Alt text](image-11.png)
+
 
 ## makeKeyExchange函数的发散分析
 重新定义了新的命名空间
@@ -59,6 +72,24 @@ TODO:2023-12-1 (stuck!!!)
 class ClientProtocolTest : public ProtocolTest<ClientTypes, Actions> ///ClientProtocolTest是从类ProtocolTest中继承得到的 related-codes\ZhangFeng\PQTLS1_3-master\fizz\client\test\ClientProtocolTest.cpp
 template <typename SM, typename Actions> class ProtocolTest : public testing::Test///ProtocolTest是从Test类中继承得到的 related-codes\ZhangFeng\PQTLS1_3-master\fizz\protocol\test\ProtocolTest.h
 ```
+## 环境配置问题总结
+1.出现了一些报错->可能原因是openssl版本过低
+![Alt text](image-7.png)
+解决办法1:把signature的cmake选项给去掉
+
+进一步地阅读CmakeList.txt,发现相应的被修改的依赖都没有给出
+
+![Alt text](image-10.png)
+
+解决办法2:跟着论文里的步骤完成相应OID的注册
+
+![Alt text](image-8.png)
+
+但是存在的问题是，代码中似乎没有给出相应的对于openssl库的修改
+
+![Alt text](image-9.png)
+
+
 
 
 

@@ -23,7 +23,7 @@ void AKCNKeyExchange::generateKeyPair()
 	}
 
 	CltInfo* p = new CltInfo();
-	int ret = crypto_kem_keypair(p->pk, p->sk);
+	int ret = crypto_kem_keypair(p->pk, p->sk); ///本质上调用的是mkem_keygen函数
 	//int ret = mkem_keygen(p->pk, p->sk);
 	if(ret != 0)
 	{

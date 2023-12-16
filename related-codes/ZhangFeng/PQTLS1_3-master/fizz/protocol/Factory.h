@@ -80,7 +80,7 @@ class Factory {
         return std::make_unique<X25519KeyExchange>();
       /******************************fzhang start******************************/
       case NamedGroup::kyber512: 
-        return std::make_unique<OQSKeyExchange<Kyber512>>(); ///分配一个使用Kyber512实例化的OQSKeyExchange对象，并返回其指针
+        return std::make_unique<OQSKeyExchange<Kyber512>>(); ///分配一个使用Kyber512实例化的OQSKeyExchange对象，并返回其指针。在OQSKeyExchange<Kyber512>中的Kyber512,是一个class
       case NamedGroup::kyber768: 
         return std::make_unique<OQSKeyExchange<Kyber768>>();
       case NamedGroup::kyber1024:
@@ -121,6 +121,10 @@ class Factory {
       case NamedGroup::akcn_hybrid: //fzhang+akcn
         return std::make_unique<HybridKeyExchange<OpenSSLECKeyExchange<P384>,AKCNKeyExchange>>(97u); 
       /******************************fzhang start******************************/
+      /****ToWrite****/
+      case NamedGroup::ctru: ///ctru的整体代码被封装好，然后在接口再进行调用即可
+        return std:
+      /****ToWrite****/
       default:
         throw std::runtime_error("ke: not implemented");
     }
