@@ -11,6 +11,17 @@ openssl的provider介绍: csrc.nist.gov/Projects/post-quantum-cryptography/publi
 ## 2023-12-18:
 openssl的官网感觉一直在介绍怎么去用相应的函数，并没有给出相关的内容
 todo:看一下代码文档里的md文件
+## 2024-1-7
+related-codes\oqs-tls\openssl-master\demos\keyexch\x25519.c主体流程是生成对等方的公钥和私钥，然后以传递参数的形式来模拟了双方交互自己公钥的行为，最终生成一个共享的秘密并比较两个秘密之间是否相等。
+
+在related-codes\oqs-tls\openssl-master\include\openssl\core_names.h.in中，给出了不同的值对应的宏定义，其中，关于KEM的是下面的两条
+```cpp
+/* OSSL_KEM_PARAM_OPERATION values */
+#define OSSL_KEM_PARAM_OPERATION_RSASVE     "RSASVE"
+#define OSSL_KEM_PARAM_OPERATION_DHKEM      "DHKEM"
+```
+
+related-codes\oqs-tls\openssl-master\include 相关的头文件都定义在这个文件夹下
 # openssl
 ## 代码结构
 demos下给出了一些样例->看下能不能跑起来
@@ -120,7 +131,7 @@ TLS支持TLS版本的协商，使用的是客户端和服务端所共同支持�
 [参考链接](https://www.openssl.org/docs/manmaster/man7/ossl-guide-tls-introduction.html)
 setup:
 1.双方创建SSL_CTX对象并且配置它
-2.客户端创建SSL对象来代表新的TLS连接。应用相关的配置并使用BIP对象来创建TCP套接字。
+2.客户端创建SSL对象来代表新的TLS连接。应用相关的配置并使用BIO对象来创建TCP套接字。
 3.服务端创建一个套接字来监听所有的客户端发起的连接。一旦建立了一个连接，服务端也会创建一个SSL对象，并将其和一个BIO对象相关联。
 
 handshake:
