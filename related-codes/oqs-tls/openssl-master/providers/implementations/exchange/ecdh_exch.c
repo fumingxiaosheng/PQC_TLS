@@ -28,7 +28,7 @@
 #include "prov/securitycheck.h"
 #include "crypto/ec.h" /* ossl_ecdh_kdf_X9_63() */
 
-static OSSL_FUNC_keyexch_newctx_fn ecdh_newctx;
+static OSSL_FUNC_keyexch_newctx_fn ecdh_newctx;//静态函数指针
 static OSSL_FUNC_keyexch_init_fn ecdh_init;
 static OSSL_FUNC_keyexch_set_peer_fn ecdh_set_peer;
 static OSSL_FUNC_keyexch_derive_fn ecdh_derive;

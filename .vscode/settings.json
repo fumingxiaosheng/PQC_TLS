@@ -1,3 +1,7 @@
 {
-    "cmake.sourceDirectory": "D:/GitHubCode/PQCTLS/PQC_TLS/related-codes/PQTLS1_3-master/fizz"
+    "cmake.sourceDirectory": "D:/GitHubCode/PQCTLS/PQC_TLS/related-codes/PQTLS1_3-master/fizz",
+    "files.associations": {
+        "stdio.h": "c",
+        "securitycheck.h": "c"
+    }
 }

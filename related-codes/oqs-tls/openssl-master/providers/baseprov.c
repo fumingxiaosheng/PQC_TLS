@@ -25,6 +25,9 @@
  * Forward declarations to ensure that interface functions are correctly
  * defined.
  */
+/*
+provider向core提供的函数
+*/
 static OSSL_FUNC_provider_gettable_params_fn base_gettable_params;
 static OSSL_FUNC_provider_get_params_fn base_get_params;
 static OSSL_FUNC_provider_query_operation_fn base_query;
@@ -68,6 +71,9 @@ static int base_get_params(void *provctx, OSSL_PARAM params[])
     return 1;
 }
 
+/*2024-1-9
+base provider所提供的相关函数
+*/
 static const OSSL_ALGORITHM base_encoder[] = {
 #define ENCODER_PROVIDER "base"
 #include "encoders.inc"
@@ -96,6 +102,9 @@ static const OSSL_ALGORITHM base_rands[] = {
     { NULL, NULL, NULL }
 };
 
+/*2024-1-9
+功能:为core提供一个provider的查询接口
+*/
 static const OSSL_ALGORITHM *base_query(void *provctx, int operation_id,
                                          int *no_cache)
 {
@@ -113,12 +122,18 @@ static const OSSL_ALGORITHM *base_query(void *provctx, int operation_id,
     return NULL;
 }
 
+/*2024-1-9
+功能:provider执行卸载时的清理操作
+*/
 static void base_teardown(void *provctx)
 {
     BIO_meth_free(ossl_prov_ctx_get0_core_bio_method(provctx));
     ossl_prov_ctx_free(provctx);
 }
 
+/*2024-1-9 
+provider向核心core开放的操作总结，最终会被传递给core
+*/
 /* Functions we provide to the core */
 static const OSSL_DISPATCH base_dispatch_table[] = {
     { OSSL_FUNC_PROVIDER_TEARDOWN, (void (*)(void))base_teardown },
@@ -131,6 +146,11 @@ static const OSSL_DISPATCH base_dispatch_table[] = {
 
 OSSL_provider_init_fn ossl_base_provider_init;
 
+/*2024-1-9
+参数:in-core的输入
+     out-provider的输出，包括为core提供的一系列函数指针
+功能:首先从in中获取core提供的相关函数接口，然后将provider自己对core的接口转存到out中
+*/
 int ossl_base_provider_init(const OSSL_CORE_HANDLE *handle,
                             const OSSL_DISPATCH *in, const OSSL_DISPATCH **out,
                             void **provctx)
@@ -179,7 +199,7 @@ int ossl_base_provider_init(const OSSL_CORE_HANDLE *handle,
     ossl_prov_ctx_set0_handle(*provctx, handle);
     ossl_prov_ctx_set0_core_bio_method(*provctx, corebiometh);
 
-    *out = base_dispatch_table;
+    *out = base_dispatch_table;//把向外部提供的功能存储在表deflt_dispatch_table中并作为变量传递出去
 
     return 1;
 }

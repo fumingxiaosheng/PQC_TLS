@@ -83,6 +83,9 @@ static int legacy_get_params(void *provctx, OSSL_PARAM params[])
     return 1;
 }
 
+/*2024-1-9
+只定义了摘要、对称密码和kdf所支持的算法类型
+*/
 static const OSSL_ALGORITHM legacy_digests[] = {
 #ifndef OPENSSL_NO_MD2
     ALG(PROV_NAMES_MD2, ossl_md2_functions),
@@ -181,12 +184,18 @@ static const OSSL_ALGORITHM *legacy_query(void *provctx, int operation_id,
     return NULL;
 }
 
+/*2024-1-9
+provider被销毁时执行的相关清理操作
+*/
 static void legacy_teardown(void *provctx)
 {
     OSSL_LIB_CTX_free(PROV_LIBCTX_OF(provctx));
     ossl_prov_ctx_free(provctx);
 }
 
+/*2024-1-9 
+provider向核心core开放的操作总结，最终会被传递给core
+*/
 /* Functions we provide to the core */
 static const OSSL_DISPATCH legacy_dispatch_table[] = {
     { OSSL_FUNC_PROVIDER_TEARDOWN, (void (*)(void))legacy_teardown },
