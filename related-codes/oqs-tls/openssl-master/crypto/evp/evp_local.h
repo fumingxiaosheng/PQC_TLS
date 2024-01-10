@@ -91,10 +91,39 @@ struct evp_rand_ctx_st {
     CRYPTO_RWLOCK *refcnt_lock;
 } /* EVP_RAND_CTX */ ;
 
+
+/*2024-1-8
+用于记录密钥管理的结构体,密钥管理不是仅仅只是kex的密钥管理，还包括其他的密钥的管理
+根据chatgpt,openssl中的密钥管理方法如下所示:
+EVP_PKEY_METHOD:
+
+描述： 提供了对公钥和私钥的通用操作的接口。
+使用： 用于执行公钥和私钥的签名、验证、加密、解密等操作。
+EVP_PKEY_RSA:
+
+描述： 提供了对 RSA 密钥的特定操作的接口。
+使用： 用于执行 RSA 密钥的签名、验证、加密、解密等操作。
+EVP_PKEY_EC:
+
+描述： 提供了对椭圆曲线密码学（Elliptic Curve Cryptography，ECC）密钥的特定操作的接口。
+使用： 用于执行 ECC 密钥的签名、验证、加密、解密等操作。
+EVP_PKEY_DH:
+
+描述： 提供了对 Diffie-Hellman 密钥的特定操作的接口。
+使用： 用于执行 Diffie-Hellman 密钥的密钥交换等操作。
+EVP_PKEY_DSA:
+
+描述： 提供了对 DSA（Digital Signature Algorithm）密钥的特定操作的接口。
+使用： 用于执行 DSA 密钥的签名、验证等操作。
+EVP_PKEY_HMAC:
+
+描述： 提供了对 HMAC 密钥的特定操作的接口。
+使用： 用于执行基于哈希的消息认证码（HMAC）操作。
+*/
 struct evp_keymgmt_st {
     int id;                      /* libcrypto internal */
 
-    int name_id;
+    int name_id; //标识密钥管理的方法
     char *type_name;
     const char *description;
     OSSL_PROVIDER *prov;
@@ -134,23 +163,31 @@ struct evp_keymgmt_st {
     OSSL_FUNC_keymgmt_dup_fn *dup;
 } /* EVP_KEYMGMT */ ;
 
+/*2024-1-8
+每个成员函数指针都指向一个具体的实现，从而提供了一种灵活的方式，允许不同的密钥交换方法通过实现这些函数来与 OpenSSL 库进行集成。
+*/
 struct evp_keyexch_st {
     int name_id;
     char *type_name;
     const char *description;
-    OSSL_PROVIDER *prov;
-    CRYPTO_REF_COUNT refcnt;
+    OSSL_PROVIDER *prov;//表示提供者的信息
+    CRYPTO_REF_COUNT refcnt;//引用计数，用于追踪该结构体被引用的次数
 
+    //密钥交换上下文的创建和销毁
     OSSL_FUNC_keyexch_newctx_fn *newctx;
     OSSL_FUNC_keyexch_init_fn *init;
-    OSSL_FUNC_keyexch_set_peer_fn *set_peer;
-    OSSL_FUNC_keyexch_derive_fn *derive;
     OSSL_FUNC_keyexch_freectx_fn *freectx;
     OSSL_FUNC_keyexch_dupctx_fn *dupctx;
+
+    OSSL_FUNC_keyexch_set_peer_fn *set_peer; //设置密钥交换的对等方信息
+    OSSL_FUNC_keyexch_derive_fn *derive;//执行密钥派生操作
+
+    //上下文参数的设置和获取
     OSSL_FUNC_keyexch_set_ctx_params_fn *set_ctx_params;
     OSSL_FUNC_keyexch_settable_ctx_params_fn *settable_ctx_params;
     OSSL_FUNC_keyexch_get_ctx_params_fn *get_ctx_params;
     OSSL_FUNC_keyexch_gettable_ctx_params_fn *gettable_ctx_params;
+
 } /* EVP_KEYEXCH */;
 
 struct evp_signature_st {

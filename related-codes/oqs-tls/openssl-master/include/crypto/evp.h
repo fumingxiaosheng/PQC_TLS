@@ -697,13 +697,13 @@ struct evp_pkey_st {
      * and a pointer to the provider side key data.  This is never used at
      * the same time as the legacy key data above.
      */
-    EVP_KEYMGMT *keymgmt;
-    void *keydata;
+    EVP_KEYMGMT *keymgmt;//密钥管理的方式
+    void *keydata;//存储具体的密钥值，具体的存储方式由keymgmt来决定
     /*
      * If any libcrypto code does anything that may modify the keydata
      * contents, this dirty counter must be incremented.
      */
-    size_t dirty_cnt;
+    size_t dirty_cnt;//记录密钥被修改的次数
 
     /*
      * To support transparent execution of operation in backends other
@@ -712,7 +712,7 @@ struct evp_pkey_st {
      * so we don't need to redo the export/import every time we perform
      * the same operation in that same provider.
      */
-    STACK_OF(OP_CACHE_ELEM) *operation_cache;
+    STACK_OF(OP_CACHE_ELEM) *operation_cache;//提供cache机制来避免重复的加载
 
     /*
      * We keep a copy of that "origin"'s dirty count, so we know if the
