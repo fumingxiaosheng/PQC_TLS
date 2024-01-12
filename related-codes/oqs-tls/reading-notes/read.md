@@ -17,11 +17,228 @@ related-codes\oqs-tls\openssl-master\demos\keyexch\x25519.c主体流程是生成
 在related-codes\oqs-tls\openssl-master\include\openssl\core_names.h.in中，给出了不同的值对应的宏定义，其中，关于KEM的是下面的两条
 ```cpp
 /* OSSL_KEM_PARAM_OPERATION values */
-#define OSSL_KEM_PARAM_OPERATION_RSASVE     "RSASVE"
+#define OSSL_KEM_PARAM_OPERATION_RSASVE     "RSASVE" 
 #define OSSL_KEM_PARAM_OPERATION_DHKEM      "DHKEM"
 ```
+>RSASVE 是 NIST.SP.800-56Br2 中定义的密钥交换机制的一部分，它指的是基于 RSA 的密钥交换算法。具体而言，RSASVE（RSA Key Encapsulation Mechanism with Sender Validation）是 NIST 标准中描述的一种密钥封装机制，用于保护密钥交换的安全性。
 
 related-codes\oqs-tls\openssl-master\include 相关的头文件都定义在这个文件夹下
+
+TODO:
+X25519使用的函数都是从哪里来的
+
+## 2024-1-8
+下图似乎表示，在oqs中支持的是"X25519", "ED25519", "X448" or "ED448"四种密钥协商的方法
+![Alt text](image-1.png)
+
+### EVP_PKEY类型的查找
+![Alt text](image-2.png)
+evp_pkey_st结构体定义在related-codes\oqs-tls\openssl-master\include\crypto\evp.h中
+```cpp
+struct evp_pkey_st {
+    /* == Legacy attributes == */
+    int type;
+    int save_type;
+
+# ifndef FIPS_MODULE
+    /*
+     * Legacy key "origin" is composed of a pointer to an EVP_PKEY_ASN1_METHOD,
+     * a pointer to a low level key and possibly a pointer to an engine.
+     */
+    const EVP_PKEY_ASN1_METHOD *ameth;
+    ENGINE *engine;
+    ENGINE *pmeth_engine; /* If not NULL public key ENGINE to use */
+
+    /* Union to store the reference to an origin legacy key */
+    union legacy_pkey_st pkey;
+
+    /* Union to store the reference to a non-origin legacy key */
+    union legacy_pkey_st legacy_cache_pkey;
+# endif
+
+    /* == Common attributes == */
+    CRYPTO_REF_COUNT references;
+    CRYPTO_RWLOCK *lock;
+#ifndef FIPS_MODULE
+    STACK_OF(X509_ATTRIBUTE) *attributes; /* [ 0 ] */
+    int save_parameters;
+    unsigned int foreign:1; /* the low-level key is using an engine or an app-method */
+    CRYPTO_EX_DATA ex_data;
+#endif
+
+    /* == Provider attributes == */
+
+    /*
+     * Provider keydata "origin" is composed of a pointer to an EVP_KEYMGMT
+     * and a pointer to the provider side key data.  This is never used at
+     * the same time as the legacy key data above.
+     */
+    EVP_KEYMGMT *keymgmt;//密钥管理的方式
+    void *keydata;//存储具体的密钥值，具体的存储方式由keymgmt来决定
+    /*
+     * If any libcrypto code does anything that may modify the keydata
+     * contents, this dirty counter must be incremented.
+     */
+    size_t dirty_cnt;//记录密钥被修改的次数
+
+    /*
+     * To support transparent execution of operation in backends other
+     * than the "origin" key, we support transparent export/import to
+     * those providers, and maintain a cache of the imported keydata,
+     * so we don't need to redo the export/import every time we perform
+     * the same operation in that same provider.
+     */
+    STACK_OF(OP_CACHE_ELEM) *operation_cache;//提供cache机制来避免重复的加载
+
+    /*
+     * We keep a copy of that "origin"'s dirty count, so we know if the
+     * operation cache needs flushing.
+     */
+    size_t dirty_cnt_copy;
+
+    /* Cache of key object information */
+    struct {
+        int bits;
+        int security_bits;
+        int size;
+    } cache;
+} /* EVP_PKEY */ ;
+
+```
+与此类似的，在types.
+其具体的结构体在related-codes\oqs-tls\openssl-master\crypto\evp\evp_local.h中进行定义
+![Alt text](image-3.png)
+
+### KEX相关的结构体查找
+在related-codes\oqs-tls\openssl-master\crypto\evp\evp_local.h文件中，存在结构体evp_keyexch_st(EVP_KEYEXCH)
+```cpp
+/*2024-1-8
+每个成员函数指针都指向一个具体的实现，从而提供了一种灵活的方式，允许不同的密钥交换方法通过实现这些函数来与 OpenSSL 库进行集成。
+*/
+struct evp_keyexch_st {
+    int name_id;
+    char *type_name;
+    const char *description;
+    OSSL_PROVIDER *prov;//表示提供者的信息
+    CRYPTO_REF_COUNT refcnt;//引用计数，用于追踪该结构体被引用的次数
+
+    //密钥交换上下文的创建和销毁
+    OSSL_FUNC_keyexch_newctx_fn *newctx;
+    OSSL_FUNC_keyexch_init_fn *init;
+    OSSL_FUNC_keyexch_freectx_fn *freectx;
+    OSSL_FUNC_keyexch_dupctx_fn *dupctx;
+
+    OSSL_FUNC_keyexch_set_peer_fn *set_peer; //设置密钥交换的对等方信息
+    OSSL_FUNC_keyexch_derive_fn *derive;//执行密钥派生操作
+
+    //上下文参数的设置和获取
+    OSSL_FUNC_keyexch_set_ctx_params_fn *set_ctx_params;
+    OSSL_FUNC_keyexch_settable_ctx_params_fn *settable_ctx_params;
+    OSSL_FUNC_keyexch_get_ctx_params_fn *get_ctx_params;
+    OSSL_FUNC_keyexch_gettable_ctx_params_fn *gettable_ctx_params;
+
+} /* EVP_KEYEXCH */;
+```
+在相关的exch代码的前部分，给出了结构体中相关元素的初始化方法
+related-codes\oqs-tls\openssl-master\providers\implementations\exchange\dh_exch.c
+related-codes\oqs-tls\openssl-master\providers\implementations\exchange\ecdh_exch.c
+
+![Alt text](image-4.png)
+TODO:
+dh_exch和ecdh_exch内的各个函数时怎么实现的，以及如何把它传递到KEX相关的结构体中的？
+## 2024-1-9
+在related-codes\oqs-tls\openssl-master\providers\implementations\include\prov\implementations.h中，存在对于所有的密钥交换算法的总结
+``` cpp
+extern const OSSL_DISPATCH ossl_dh_keyexch_functions[];
+extern const OSSL_DISPATCH ossl_x25519_keyexch_functions[];
+extern const OSSL_DISPATCH ossl_x448_keyexch_functions[];
+extern const OSSL_DISPATCH ossl_ecdh_keyexch_functions[];
+extern const OSSL_DISPATCH ossl_kdf_tls1_prf_keyexch_functions[];
+extern const OSSL_DISPATCH ossl_kdf_hkdf_keyexch_functions[];
+extern const OSSL_DISPATCH ossl_kdf_scrypt_keyexch_functions[];
+```
+![Alt text](image-5.png)
+
+
+在related-codes\oqs-tls\openssl-master\providers\defltprov.c中，有关于keyexch算法的选择
+``` cpp
+static const OSSL_ALGORITHM deflt_keyexch[] = {
+#ifndef OPENSSL_NO_DH
+    { PROV_NAMES_DH, "provider=default", ossl_dh_keyexch_functions },
+#endif
+#ifndef OPENSSL_NO_EC
+    { PROV_NAMES_ECDH, "provider=default", ossl_ecdh_keyexch_functions },
+# ifndef OPENSSL_NO_ECX
+    { PROV_NAMES_X25519, "provider=default", ossl_x25519_keyexch_functions },
+    { PROV_NAMES_X448, "provider=default", ossl_x448_keyexch_functions },
+# endif
+#endif
+    { PROV_NAMES_TLS1_PRF, "provider=default", ossl_kdf_tls1_prf_keyexch_functions },
+    { PROV_NAMES_HKDF, "provider=default", ossl_kdf_hkdf_keyexch_functions },
+    { PROV_NAMES_SCRYPT, "provider=default",
+      ossl_kdf_scrypt_keyexch_functions },
+    { NULL, NULL, NULL }
+};
+```
+deflt_keyexch会被在同文件下的函数deflt_query使用，而deflt_query函数作为provider向core提供的接口table的一个元素，该table将被作为provider的初始化函数的一部分
+
+在related-codes\oqs-tls\openssl-master\providers\fips\fipsprov.c中，有关于keyexch算法的选择
+``` cpp
+static const OSSL_ALGORITHM fips_keyexch[] = {
+#ifndef OPENSSL_NO_DH
+    { PROV_NAMES_DH, FIPS_DEFAULT_PROPERTIES, ossl_dh_keyexch_functions },
+#endif
+#ifndef OPENSSL_NO_EC
+    { PROV_NAMES_ECDH, FIPS_DEFAULT_PROPERTIES, ossl_ecdh_keyexch_functions },
+# ifndef OPENSSL_NO_ECX
+    { PROV_NAMES_X25519, FIPS_DEFAULT_PROPERTIES, ossl_x25519_keyexch_functions },
+    { PROV_NAMES_X448, FIPS_DEFAULT_PROPERTIES, ossl_x448_keyexch_functions },
+# endif
+#endif
+    { PROV_NAMES_TLS1_PRF, FIPS_DEFAULT_PROPERTIES,
+      ossl_kdf_tls1_prf_keyexch_functions },
+    { PROV_NAMES_HKDF, FIPS_DEFAULT_PROPERTIES, ossl_kdf_hkdf_keyexch_functions },
+    { NULL, NULL, NULL }
+};
+
+```
+上述代码中OSSL_ALGORITHM的具体结构体定义如下所示
+``` cpp
+def struct ossl_algorithm_st OSSL_ALGORITHM;
+struct ossl_algorithm_st {
+    const char *algorithm_names;     /* key */
+    const char *property_definition; /* key */
+    const OSSL_DISPATCH *implementation; //代表了具体的实现，即函数的实例化
+    const char *algorithm_description;
+};
+```
+> 阶段总结:总共提供了dh、ecdh、x25519、x448和kdf这几种实现，并在provider中提供了可选择性
+
+以related-codes\oqs-tls\openssl-master\providers\defltprov.c为例来学习一下provider的实现思路:provider中给出了该provider所支持的各种密码套件的具体算法，获取core所支持的函数，并向core提供自己所支持的相关操作
+
+### 以ossl_rsa_asym_kem_functions为例探究kem的具体集成思路
+related-codes\oqs-tls\openssl-master\providers\implementations\kem\rsa_kem.c中定义了ossl_rsa_asym_kem_functions
+rsa的具体实现在related-codes\oqs-tls\openssl-master\crypto\rsa中，其中对于rsa的测试文件为related-codes\oqs-tls\openssl-master\test\rsa_test.c和related-codes\oqs-tls\openssl-master\test\rsa_mp_test.c
+
+## 2024-1-10
+> 阶段总结:从X25519的测试文件出发，发现了EVP_KEYEXCH，然后根据这个结构体定位到了相关exch(例如ecdh_exch.c)的代码实现，从这些方法被调用的角度出发，找到了provider的相关实现，在provider中发现了关于kem的内容，于是开始研究kem是如何进行集成的。
+
+### RSA算法的基本信息
+![Alt text](image-6.png)
+(openssl中关于RSASVP的介绍网址)[https://www.openssl.org/docs/man3.0/man7/EVP_PKEY-RSA.html]
+![Alt text](image-7.png)
+[https://www.openssl.org/docs/man3.0/man7/EVP_KEM-RSA.html] 
+
+### rsa_kem.c代码阅读总结
+rsa_kem.c位于related-codes\oqs-tls\openssl-master\providers\implementations\kem\rsa_kem.c中。
+rsa_kem.c对外(provider)提供了一个接口数组ossl_rsa_asym_kem_functions，里面存放了所有在rsa_kem.c中实现的函数。
+在rsa_kem.c中，主要是调用了rsa的底层实现，实现了封装(rsakem_generate)和解封装函数(rsakem_recover)。此外，还实现了对于ras_kem的上下文(ctx)进行操作(例如复制、销毁、初始化等)的各种函数
+
+> 现在想要找rsa用于加密的具体函数，但存在的问题是该函数指针存在于RSA结构体的meth中，而在RSA_public_encrypt的调用过程中，RSA结构体是作为参数传递过来的，那么就要找调用RSA_public_encrypt的函数，即为rsasve_generate，而该函数却又作为rsa_kem.c对外的唯一接口——数组ossl_rsa_asym_kem_functions中的一个元素，因此需要定位ossl_rsa_asym_kem_functions在哪里被调用，此时又回到了provider中
+
+### provider是如何被调用的
+
+
 # openssl
 ## 代码结构
 demos下给出了一些样例->看下能不能跑起来
@@ -42,11 +259,14 @@ openssl的多线程安全问题和需要去关注调用的openssl函数的返回
 openssl在第一次时会加载一个配置文件
 ## provider
 在openssl中，provider是提供相应密码套件原语的部分。
+provider允许用户动态地加载和选择密码学实现
+
 > In order to use an algorithm you must have at least one provider loaded that contains an implementation of it.
 内置(built-in)的provider可能已经在libcrypto中实现或者由函数本身实现
 还有一类provider是一个单独的可加载模块文件，例如.so和.dll
 
 provider一般只会load和unload一次
+>是对应了prov函数中的init函数吗？
 
 不同的provider可能会实现一个相同的算法，使用PROPERTY QUERY STRINGS来为算法的选择指定一些条件，例如provider=default
 
@@ -67,7 +287,8 @@ provider=legacy
 
 ### 5.null provider
 null提供程序是作为libcrypto库的一部分内置的。它根本不包含任何算法。
-
+具体来说，在代码中的related-codes\oqs-tls\openssl-master\providers文件夹下
+有baseprov.c、defltprov.c、legacyprov.c、nullprov.c和fips\fipsprov.c这5种文件
 
 ## library context
 库的语境规定了一些配置
@@ -142,3 +363,4 @@ data transfer phase:
 
 shutdown:
 "close_notify"用于标记连接的关闭
+hh
