@@ -26,6 +26,7 @@
 /*
  * Forward declarations to ensure that interface functions are correctly
  * defined.
+ * 前向声明的含义:前向声明通常只能提供有关实体的基本信息，而不包括具体的实现细节。
  */
 static OSSL_FUNC_provider_gettable_params_fn deflt_gettable_params;
 static OSSL_FUNC_provider_get_params_fn deflt_get_params;
@@ -98,6 +99,9 @@ static int deflt_get_params(void *provctx, OSSL_PARAM params[])
  * Algorithm names are case insensitive, but we use all caps in our "canonical"
  * names for consistency.
  */
+/*2024-1-9
+openssl的可用hash函数实现
+*/
 static const OSSL_ALGORITHM deflt_digests[] = {
     /* Our primary name:NIST name[:our older names] */
     { PROV_NAMES_SHA1, "provider=default", ossl_sha1_functions },
@@ -153,7 +157,6 @@ static const OSSL_ALGORITHM deflt_digests[] = {
     { PROV_NAMES_MD5, "provider=default", ossl_md5_functions },
     { PROV_NAMES_MD5_SHA1, "provider=default", ossl_md5_sha1_functions },
 #endif /* OPENSSL_NO_MD5 */
-
 #ifndef OPENSSL_NO_RMD160
     { PROV_NAMES_RIPEMD_160, "provider=default", ossl_ripemd160_functions },
 #endif /* OPENSSL_NO_RMD160 */
@@ -162,6 +165,9 @@ static const OSSL_ALGORITHM deflt_digests[] = {
     { NULL, NULL, NULL }
 };
 
+/*2024-1-9
+openssl的可用对称密码体制
+*/
 static const OSSL_ALGORITHM_CAPABLE deflt_ciphers[] = {
     ALG(PROV_NAMES_NULL, ossl_null_functions),
     ALG(PROV_NAMES_AES_256_ECB, ossl_aes256ecb_functions),
@@ -317,6 +323,9 @@ static const OSSL_ALGORITHM_CAPABLE deflt_ciphers[] = {
 };
 static OSSL_ALGORITHM exported_ciphers[OSSL_NELEM(deflt_ciphers)];
 
+/*2024-1-9
+openssl的可用mac
+*/
 static const OSSL_ALGORITHM deflt_macs[] = {
 #ifndef OPENSSL_NO_BLAKE2
     { PROV_NAMES_BLAKE2BMAC, "provider=default", ossl_blake2bmac_functions },
@@ -338,6 +347,9 @@ static const OSSL_ALGORITHM deflt_macs[] = {
     { NULL, NULL, NULL }
 };
 
+/*2024-1-9
+openssl的可用kdf函数
+*/
 static const OSSL_ALGORITHM deflt_kdfs[] = {
     { PROV_NAMES_HKDF, "provider=default", ossl_kdf_hkdf_functions },
     { PROV_NAMES_TLS1_3_KDF, "provider=default",
@@ -364,6 +376,9 @@ static const OSSL_ALGORITHM deflt_kdfs[] = {
     { NULL, NULL, NULL }
 };
 
+/*2024-1-9
+openssl的可用kex函数hh
+*/
 static const OSSL_ALGORITHM deflt_keyexch[] = {
 #ifndef OPENSSL_NO_DH
     { PROV_NAMES_DH, "provider=default", ossl_dh_keyexch_functions },
@@ -382,6 +397,9 @@ static const OSSL_ALGORITHM deflt_keyexch[] = {
     { NULL, NULL, NULL }
 };
 
+/*2024-1-9
+openssl的随机函数实现
+*/
 static const OSSL_ALGORITHM deflt_rands[] = {
     { PROV_NAMES_CTR_DRBG, "provider=default", ossl_drbg_ctr_functions },
     { PROV_NAMES_HASH_DRBG, "provider=default", ossl_drbg_hash_functions },
@@ -391,6 +409,9 @@ static const OSSL_ALGORITHM deflt_rands[] = {
     { NULL, NULL, NULL }
 };
 
+/*2024-1-9
+openssl的可用签名函数
+*/
 static const OSSL_ALGORITHM deflt_signature[] = {
 #ifndef OPENSSL_NO_DSA
     { PROV_NAMES_DSA, "provider=default", ossl_dsa_signature_functions },
@@ -419,6 +440,9 @@ static const OSSL_ALGORITHM deflt_signature[] = {
     { NULL, NULL, NULL }
 };
 
+/*2024-1-9
+openssl的非对称密码体制
+*/
 static const OSSL_ALGORITHM deflt_asym_cipher[] = {
     { PROV_NAMES_RSA, "provider=default", ossl_rsa_asym_cipher_functions },
 #ifndef OPENSSL_NO_SM2
@@ -427,6 +451,9 @@ static const OSSL_ALGORITHM deflt_asym_cipher[] = {
     { NULL, NULL, NULL }
 };
 
+/*2024-1-9
+openssl的非对称密码体制构成的kem方案
+*/
 static const OSSL_ALGORITHM deflt_asym_kem[] = {
     { PROV_NAMES_RSA, "provider=default", ossl_rsa_asym_kem_functions },
 #ifndef OPENSSL_NO_EC
@@ -439,6 +466,9 @@ static const OSSL_ALGORITHM deflt_asym_kem[] = {
     { NULL, NULL, NULL }
 };
 
+/*2024-1-9
+openssl的密钥管理方案
+*/
 static const OSSL_ALGORITHM deflt_keymgmt[] = {
 #ifndef OPENSSL_NO_DH
     { PROV_NAMES_DH, "provider=default", ossl_dh_keymgmt_functions,
@@ -493,6 +523,9 @@ static const OSSL_ALGORITHM deflt_keymgmt[] = {
     { NULL, NULL, NULL }
 };
 
+/*2024-1-9
+openssl的encode方案
+*/
 static const OSSL_ALGORITHM deflt_encoder[] = {
 #define ENCODER_PROVIDER "default"
 #include "encoders.inc"
@@ -500,6 +533,9 @@ static const OSSL_ALGORITHM deflt_encoder[] = {
 #undef ENCODER_PROVIDER
 };
 
+/*2024-1-9
+openssl的decode方案
+*/
 static const OSSL_ALGORITHM deflt_decoder[] = {
 #define DECODER_PROVIDER "default"
 #include "decoders.inc"
@@ -507,6 +543,9 @@ static const OSSL_ALGORITHM deflt_decoder[] = {
 #undef DECODER_PROVIDER
 };
 
+/*2024-1-9
+openssl的store方案
+*/
 static const OSSL_ALGORITHM deflt_store[] = {
 #define STORE(name, _fips, func_table)                           \
     { name, "provider=default,fips=" _fips, (func_table) },
@@ -516,11 +555,15 @@ static const OSSL_ALGORITHM deflt_store[] = {
 #undef STORE
 };
 
+/*2024-1-9
+参数:operation_id-代表的是操作id，用于后续switch的操作选择
+功能:该provider向外部提供的查询函数
+*/
 static const OSSL_ALGORITHM *deflt_query(void *provctx, int operation_id,
                                          int *no_cache)
 {
     *no_cache = 0;
-    switch (operation_id) {
+    switch (operation_id) { //根据传入的参数来选择需要询问的类型
     case OSSL_OP_DIGEST:
         return deflt_digests;
     case OSSL_OP_CIPHER:
@@ -551,13 +594,19 @@ static const OSSL_ALGORITHM *deflt_query(void *provctx, int operation_id,
     return NULL;
 }
 
-
+/*2024-1-9
+参数:provctx-provider的上下文指针
+功能:provider执行卸载操作时的清理操作
+*/
 static void deflt_teardown(void *provctx)
 {
     BIO_meth_free(ossl_prov_ctx_get0_core_bio_method(provctx));
     ossl_prov_ctx_free(provctx);
 }
 
+/*2024-1-9 
+provider向核心core开放的操作总结，最终会被传递给core
+*/
 /* Functions we provide to the core */
 static const OSSL_DISPATCH deflt_dispatch_table[] = {
     { OSSL_FUNC_PROVIDER_TEARDOWN, (void (*)(void))deflt_teardown },
@@ -569,23 +618,31 @@ static const OSSL_DISPATCH deflt_dispatch_table[] = {
     OSSL_DISPATCH_END
 };
 
-OSSL_provider_init_fn ossl_default_provider_init;
+OSSL_provider_init_fn ossl_default_provider_init;//定义了一个函数指针变量ossl_default_provider_init
 
+/*2024-1-9
+参数:in-core的输入
+     out-provider的输出，包括为core提供的一系列函数指针
+功能:首先从in中获取core提供的相关函数接口，然后将provider自己对core的接口转存到out中
+*/
 int ossl_default_provider_init(const OSSL_CORE_HANDLE *handle,
                                const OSSL_DISPATCH *in,
                                const OSSL_DISPATCH **out,
                                void **provctx)
 {
-    OSSL_FUNC_core_get_libctx_fn *c_get_libctx = NULL;
+    OSSL_FUNC_core_get_libctx_fn *c_get_libctx = NULL; //provider获取core上下文的函数指针
     BIO_METHOD *corebiometh;
 
+    //检查提供者是否支持从调度表中获取 BIO 方法和种子（seed）的功能，如果不支持则返回 0。
     if (!ossl_prov_bio_from_dispatch(in)
             || !ossl_prov_seeding_from_dispatch(in))
         return 0;
+
+    //in中指出了core提供的相关函数，因此for循环应该是从core获得相关的支持
     for (; in->function_id != 0; in++) {
         switch (in->function_id) {
         case OSSL_FUNC_CORE_GETTABLE_PARAMS:
-            c_gettable_params = OSSL_FUNC_core_gettable_params(in);
+            c_gettable_params = OSSL_FUNC_core_gettable_params(in); //由core提供的函数
             break;
         case OSSL_FUNC_CORE_GET_PARAMS:
             c_get_params = OSSL_FUNC_core_get_params(in);
@@ -621,8 +678,8 @@ int ossl_default_provider_init(const OSSL_CORE_HANDLE *handle,
     ossl_prov_ctx_set0_handle(*provctx, handle);
     ossl_prov_ctx_set0_core_bio_method(*provctx, corebiometh);
 
-    *out = deflt_dispatch_table;
-    ossl_prov_cache_exported_algorithms(deflt_ciphers, exported_ciphers);
+    *out = deflt_dispatch_table;//把向外部提供的功能存储在表deflt_dispatch_table中并作为变量传递出去
+    ossl_prov_cache_exported_algorithms(deflt_ciphers, exported_ciphers);//缓存provider默认支持的列表
 
     return 1;
 }
