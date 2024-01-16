@@ -503,6 +503,13 @@ int EVP_PKEY_derive_set_peer(EVP_PKEY_CTX *ctx, EVP_PKEY *peer)
     return EVP_PKEY_derive_set_peer_ex(ctx, peer, 1);
 }
 
+/*2024-1-14
+参数:ctx-这是一个指向 EVP（Envelope）密钥操作的上下文结构体的指针
+    key-一个指向存储派生密钥结果的缓冲区的指针。函数将派生的密钥存储在这个缓冲区中。
+    pkeylen-存储派生密钥长度的变量的指针
+处理流程:首先根据当前的状态判断需要进行的密钥派生操作是什么，然后调用具体实现的密钥派生操作，然后存储相应的密钥派生结果
+
+*/
 int EVP_PKEY_derive(EVP_PKEY_CTX *ctx, unsigned char *key, size_t *pkeylen)
 {
     int ret;
@@ -521,7 +528,7 @@ int EVP_PKEY_derive(EVP_PKEY_CTX *ctx, unsigned char *key, size_t *pkeylen)
         goto legacy;
 
     ret = ctx->op.kex.exchange->derive(ctx->op.kex.algctx, key, pkeylen,
-                                       key != NULL ? *pkeylen : 0);
+                                       key != NULL ? *pkeylen : 0);//调用相应的密钥交换算法的 "derive" 函数
 
     return ret;
  legacy:

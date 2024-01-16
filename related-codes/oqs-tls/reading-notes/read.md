@@ -239,6 +239,112 @@ rsa_kem.c对外(provider)提供了一个接口数组ossl_rsa_asym_kem_functions�
 ### provider是如何被调用的
 
 
+## 2024-1-14
+包括libssl在内，所有对于libcrypto的调用都是通过EVP的
+
+
+![Alt text](image-8.png)
+
+### 官方文档阅读之-算法选择
+以下为显示地进行算法选择的过程
+```cpp
+//声明了一个 EVP_CIPHER_CTX 结构体指针 ctx 和一个 EVP_CIPHER 结构体指针 ciph，用于存储加密上下文和加密算法信息。
+EVP_CIPHER_CTX *ctx;
+EVP_CIPHER *ciph;
+//使用 EVP_CIPHER_CTX_new 函数创建一个新的加密上下文对象，并将其地址赋给 ctx 指针。
+ctx = EVP_CIPHER_CTX_new();
+//使用 EVP_CIPHER_fetch 函数从 osslctx 中获取 AES-128-CBC 算法的信息，并将其赋给 ciph 指针。
+ciph = EVP_CIPHER_fetch(osslctx, "aes-128-cbc", NULL);                /* <=== */
+//使用 EVP_EncryptInit_ex 函数初始化加密操作。传入加密上下文 ctx、加密算法信息 ciph、密钥 key 和初始化向量 iv。
+EVP_EncryptInit_ex(ctx, ciph, NULL, key, iv);
+//使用 EVP_EncryptUpdate 函数对输入的明文数据进行加密，并将结果存储在 ciphertext 中。clen 是一个输出参数，表示加密后的数据长度。
+EVP_EncryptUpdate(ctx, ciphertext, &clen, plaintext, plen);
+//使用 EVP_EncryptFinal_ex 函数结束加密操作。任何剩余的加密数据将被处理，并将结果追加到 ciphertext 的末尾。最后，更新 clen 以包含完整的加密数据长度。
+EVP_EncryptFinal_ex(ctx, ciphertext + clen, &clentmp);
+clen += clentmp;
+//释放资源
+EVP_CIPHER_CTX_free(ctx);
+EVP_CIPHER_free(ciph); 
+```
+## 2024-1-15
+
+## openssl design文档阅读结束
+
+## openssl的编码使用
+参考的链接 https://www.openssl.org/docs/man3.0/man7/crypto.html
+![Alt text](image-9.png)
+
+```cpp
+#include <stdio.h>
+#include <openssl/evp.h>
+#include <openssl/bio.h>
+#include <openssl/err.h>
+
+int main(void)
+{
+    EVP_MD_CTX *ctx = NULL;
+    EVP_MD *sha256 = NULL;
+    const unsigned char msg[] = {
+        0x00, 0x01, 0x02, 0x03
+    };
+    unsigned int len = 0;
+    unsigned char *outdigest = NULL;
+    int ret = 1;
+
+    /* Create a context for the digest operation */
+    ctx = EVP_MD_CTX_new();
+    if (ctx == NULL)
+        goto err;
+
+    /*
+     * Fetch the SHA256 algorithm implementation for doing the digest. We're
+     * using the "default" library context here (first NULL parameter), and
+     * we're not supplying any particular search criteria for our SHA256
+     * implementation (second NULL parameter). Any SHA256 implementation will
+     * do.
+     * In a larger application this fetch would just be done once, and could
+     * be used for multiple calls to other operations such as EVP_DigestInit_ex().
+     */
+    sha256 = EVP_MD_fetch(NULL, "SHA256", NULL); //TODO:这里的default library context的含义是什么？
+    if (sha256 == NULL)
+        goto err;
+
+   /* Initialise the digest operation */
+   if (!EVP_DigestInit_ex(ctx, sha256, NULL)) //sha256指向了具体的函数实现方法
+       goto err;
+
+    /*
+     * Pass the message to be digested. This can be passed in over multiple
+     * EVP_DigestUpdate calls if necessary
+     */
+    if (!EVP_DigestUpdate(ctx, msg, sizeof(msg)))
+        goto err;
+
+    /* Allocate the output buffer */
+    outdigest = OPENSSL_malloc(EVP_MD_get_size(sha256));
+    if (outdigest == NULL)
+        goto err;
+
+    /* Now calculate the digest itself */
+    if (!EVP_DigestFinal_ex(ctx, outdigest, &len))
+        goto err;
+
+    /* Print out the digest result */
+    BIO_dump_fp(stdout, outdigest, len);
+
+    ret = 0;
+
+ err:
+    /* Clean up all the resources we allocated */
+    OPENSSL_free(outdigest);
+    EVP_MD_free(sha256);
+    EVP_MD_CTX_free(ctx);
+    if (ret != 0)
+       ERR_print_errors_fp(stderr);
+    return ret;
+}
+```
+
 # openssl
 ## 代码结构
 demos下给出了一些样例->看下能不能跑起来

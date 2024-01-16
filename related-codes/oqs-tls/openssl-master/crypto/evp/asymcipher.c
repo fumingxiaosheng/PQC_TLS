@@ -286,7 +286,7 @@ int EVP_PKEY_decrypt(EVP_PKEY_CTX *ctx,
         goto legacy;
 
     ret = ctx->op.ciph.cipher->decrypt(ctx->op.ciph.algctx, out, outlen,
-                                       (out == NULL ? 0 : *outlen), in, inlen);
+                                       (out == NULL ? 0 : *outlen), in, inlen); //调用最本质的
     return ret;
 
  legacy:
