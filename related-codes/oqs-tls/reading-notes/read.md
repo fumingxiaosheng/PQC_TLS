@@ -269,6 +269,8 @@ EVP_CIPHER_free(ciph);
 ## 2024-1-15
 
 ## openssl design文档阅读结束
+>还是有些许的混乱的
+
 
 ## openssl的编码使用
 参考的链接 https://www.openssl.org/docs/man3.0/man7/crypto.html
@@ -344,7 +346,407 @@ int main(void)
     return ret;
 }
 ```
+## 2024-1-16
+在编译过程中，遇到了诸如下述的问题，即目标动态库不存在，经过分析，认定为代码中使用的函数版本和实际上链接到的openssl库的版本不匹配。
+![Alt text](a70032cfc74c70fdd28668aaf8828b4.png)
+因此，使用下述命令对上述代码进行编译
+```
+gcc first-test.c -o first-test -lssl -lcrypto -L /usr/local/openssl/lib64
+```
+注意:在这里需要指明动态链接库的位置-L，使用-lssl代表需要使用的库为libssl和libcrypto(据gpt这里应该使用的是动态链接库)
 
+## 2024-1-18
+### A 查找liboqs和openssl之间的链接关系
+#### A.a liboqs官方文档的阅读
+1.关于生成的静态链接库liboqs的使用
+https://github.com/open-quantum-safe/liboqs/wiki/Minimal-example-of-a-post-quantum-KEM
+使用下面的命令进行编译
+```bash
+gcc -Ibuild/include -I/usr/local/openssl/include  -Lbuild/lib -L/usr/local/openssl/lib64 tests/example_kem.c -o example_kem -loqs -lcrypto -pthread
+```
+需要得到openssl中的lcrypto支持
+
+2.编程的convention
+https://github.com/open-quantum-safe/liboqs/wiki/Coding-conventions
+公共函数是以大写字母开头的，格式为OQS_KEM_...或者OQS_SIG_...
+私有函数(在整个项目中具有全局的范围)不能被生成的lib调用，使用小写字母开头
+涉及存储秘密的内存，一旦不使用，应该立即清空，在栈上使用OQS_MEM_cleanse来进行清除，在堆上使用OQS_MEM_secure_free进行清除
+使用OQS_STATUS来进行来表示函数是成功还是失败，位于src/common/common.h
+使用doxygen来生成代码文档
+
+3.发布notes
+https://github.com/open-quantum-safe/liboqs/wiki/Release-process
+
+> A.a完成
+#### A.b liboqs-main的代码结构
+C:\Users\Lenovo\Desktop\file cache\liboqs-main\tests 存储的是待测试的文件
+C:\Users\Lenovo\Desktop\file cache\liboqs-main\src 存储了相关的后量子密码的实现源码，包括sig和kem
+
+#### A.c oqs-provider官方文档的阅读
+https://github.com/open-quantum-safe/oqs-provider
+
+STATUS:KEM被集成到了openssl provider中,QSC签名和CMS和SMP被集成到了EVP中,通过编码/解码机制和X.509数据结构提供密钥持久性。
+    [Standards supported when deploying oqsprovider](https://github.com/open-quantum-safe/oqs-provider/blob/main/STANDARDS.md):oqs-provider集成到了openssl中，当应用程序调用后量子密码算法时，oqs-provider提供相关的支持。oqs-provider的具体内容依赖于liboqs。
+    [oqs-provider中支持的kem的具体信息](https://github.com/open-quantum-safe/oqs-provider/blob/main/oqs-template/oqs-kem-info.md)
+
+ALGORITHMS：
+    可以更改下述文件[Configuring oqsprovider](https://github.com/open-quantum-safe/oqs-provider/blob/main/CONFIGURE.md#pre-build-configuration)来更改TLS中对于不同密码算法的支持。
+    对于后量子密码算法，不仅仅只有单独模式，还有和一般的密码算法的混合模式，例如以p256_开头的。
+    **在增加了新的密码算法时，需要调整OID和相关的算法实现**
+
+Quick Start:
+    运行scripts/fullbuild.sh和scripts/runtests.sh
+    
+
+
+
+##### A.a.a 查看openssl支持的相关算法
+
+可以使用下述命令来查看oqsprovider支持的kem算法类型
+```bash
+openssl list -signature-algorithms -provider oqsprovider and openssl list -kem-algorithms -provider oqsprovider
+```
+> TODO:应该如何进行集成呢？
+
+```bash
+hxw@ubuntu:~/Desktop/liboqs-main$ openssl list -provider default -kem-algorithms
+  { 1.2.840.113549.1.1.1, 2.5.8.1.1, RSA, rsaEncryption } @ default
+  { 1.2.840.10045.2.1, EC, id-ecPublicKey } @ default
+  { 1.3.101.110, X25519 } @ default
+  { 1.3.101.111, X448 } @ default
+hxw@ubuntu:~/Desktop/liboqs-main$ openssl list -providers
+Providers:
+  default
+    name: OpenSSL Default Provider
+    version: 3.2.0
+    status: active
+hxw@ubuntu:~/Desktop/liboqs-main$ 
+```
+## 2024-1-20
+### A.d oqs-provider的安装
+解决找不到liboqs的问题
+```bash
+hxw@ubuntu:~/Desktop/oqs-provider-main/scripts$ ./fullbuild.sh
+need to re-build static liboqs...
+cloning liboqs main...
+./fullbuild.sh: line 77: git: command not found
+liboqs clone failure for branch main. Exiting.
+hxw@ubuntu:~/Desktop/oqs-provider-main/scripts$ export liboqs_DIR=/home/hxw/Desktop/liboqs-main/build/lib
+```
+
+解决
+```bash
+hxw@ubuntu:~/Desktop/oqs-provider-main$ ./scripts/fullbuild.sh 
+oqsprovider (_build/lib/oqsprovider.so) not built: Building...
+CMake Deprecation Warning at CMakeLists.txt:4 (cmake_minimum_required):
+  Compatibility with CMake < 3.5 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value or use a ...<max> suffix to tell
+  CMake that the project does not need compatibility with older versions.
+
+
+-- The C compiler identification is GNU 9.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Creating Release build
+-- Build will store public keys in PKCS#8 structures
+-- Build will not include external encoding library for SPKI/PKCS#8
+CMake Error at /usr/local/share/cmake-3.27/Modules/FindPackageHandleStandardArgs.cmake:230 (message):
+  Could NOT find OpenSSL, try to set the path to OpenSSL root folder in the
+  system variable OPENSSL_ROOT_DIR: Found unsuitable version "1.1.1f", but
+  required is at least "3.0" (found /usr/lib/x86_64-linux-gnu/libcrypto.so, )
+Call Stack (most recent call first):
+  /usr/local/share/cmake-3.27/Modules/FindPackageHandleStandardArgs.cmake:598 (_FPHSA_FAILURE_MESSAGE)
+  /usr/local/share/cmake-3.27/Modules/FindOpenSSL.cmake:668 (find_package_handle_standard_args)
+  CMakeLists.txt:58 (find_package)
+
+
+-- Configuring incomplete, errors occurred!
+provider build failed. Exiting.
+hxw@ubuntu:~/Desktop/oqs-provider-main$ export OPENSSL_ROOT_DIR=/usr/local/openssl
+hxw@ubuntu:~/Desktop/oqs-provider-main$ ./scripts/fullbuild.sh 
+oqsprovider (_build/lib/oqsprovider.so) not built: Building...
+CMake Deprecation Warning at CMakeLists.txt:4 (cmake_minimum_required):
+  Compatibility with CMake < 3.5 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value or use a ...<max> suffix to tell
+  CMake that the project does not need compatibility with older versions.
+
+
+-- Creating Release build
+-- Build will store public keys in PKCS#8 structures
+-- Build will not include external encoding library for SPKI/PKCS#8
+CMake Error at /usr/local/share/cmake-3.27/Modules/FindPackageHandleStandardArgs.cmake:230 (message):
+  Could NOT find OpenSSL, try to set the path to OpenSSL root folder in the
+  system variable OPENSSL_ROOT_DIR: Found unsuitable version "1.1.1f", but
+  required is at least "3.0" (found /usr/lib/x86_64-linux-gnu/libcrypto.so, )
+Call Stack (most recent call first):
+  /usr/local/share/cmake-3.27/Modules/FindPackageHandleStandardArgs.cmake:598 (_FPHSA_FAILURE_MESSAGE)
+  /usr/local/share/cmake-3.27/Modules/FindOpenSSL.cmake:668 (find_package_handle_standard_args)
+  CMakeLists.txt:58 (find_package)
+
+
+-- Configuring incomplete, errors occurred!
+provider build failed. Exiting.
+```
+在环境变量中关于openssl的部分都是正确的
+![Alt text](image-10.png)
+
+于是把/usr/lib/x86_64-linux-gnu/给删除了
+
+```bash
+hxw@ubuntu:~/Desktop/oqs-provider-main$ ./scripts/fullbuild.sh 
+
+
+
+/usr/local/openssl/lib64
+
+/home/hxw/Desktop/liboqs-main/build/lib
+/usr/local/openssl/lib64
+oqsprovider (_build/lib/oqsprovider.so) not built: Building...
+openssl install type
+cmake: error while loading shared libraries: libcrypto.so.1.1: cannot open shared object file: No such file or directory
+before cmake
+cmake: error while loading shared libraries: libcrypto.so.1.1: cannot open shared object file: No such file or directory
+provider build failed. Exiting.
+```
+
+**打算在不安装openssl3.x和liboqs的情况下直接进行安装**
+会将openssl和liboqs下载在当前文件夹下
+
+Found OpenSSL: /home/hxw/Desktop/oqs-provider-main/.local/lib/libcrypto.so (found suitable version "3.3.0", minimum required is "3.0")  
+-- liboqs found: Include dir at /home/hxw/Desktop/oqs-provider-main/.local/include;/home/hxw/Desktop/oqs-provider-main/.local/include/oqs
+
+最终的安装命令行输出如下所示:
+```bash
+oqsprovider (_build/lib/oqsprovider.so) not built: Building...
+openssl install type
+CMake Deprecation Warning at CMakeLists.txt:4 (cmake_minimum_required):
+  Compatibility with CMake < 3.5 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value or use a ...<max> suffix to tell
+  CMake that the project does not need compatibility with older versions.
+
+
+-- The C compiler identification is GNU 9.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Creating Release build
+-- Build will store public keys in PKCS#8 structures
+-- Build will not include external encoding library for SPKI/PKCS#8
+-- Found OpenSSL: /home/hxw/Desktop/oqs-provider-main/.local/lib/libcrypto.so (found suitable version "3.3.0", minimum required is "3.0")  
+-- liboqs found: Include dir at /home/hxw/Desktop/oqs-provider-main/.local/include;/home/hxw/Desktop/oqs-provider-main/.local/include/oqs
+fatal: not a git repository (or any of the parent directories): .git
+-- Building commit  in /home/hxw/Desktop/oqs-provider-main
+-- Configuring done (1.4s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/hxw/Desktop/oqs-provider-main/_build
+before cmake
+[  3%] Building C object oqsprov/CMakeFiles/oqsprovider.dir/oqsprov.c.o
+[  7%] Building C object oqsprov/CMakeFiles/oqsprovider.dir/oqsprov_capabilities.c.o
+[ 10%] Building C object oqsprov/CMakeFiles/oqsprovider.dir/oqsprov_keys.c.o
+[ 14%] Building C object oqsprov/CMakeFiles/oqsprovider.dir/oqs_kmgmt.c.o
+[ 17%] Building C object oqsprov/CMakeFiles/oqsprovider.dir/oqs_sig.c.o
+[ 21%] Building C object oqsprov/CMakeFiles/oqsprovider.dir/oqs_kem.c.o
+[ 25%] Building C object oqsprov/CMakeFiles/oqsprovider.dir/oqs_encode_key2any.c.o
+[ 28%] Building C object oqsprov/CMakeFiles/oqsprovider.dir/oqs_endecoder_common.c.o
+[ 32%] Building C object oqsprov/CMakeFiles/oqsprovider.dir/oqs_decode_der2key.c.o
+[ 35%] Building C object oqsprov/CMakeFiles/oqsprovider.dir/oqsprov_bio.c.o
+[ 39%] Linking C shared module ../lib/oqsprovider.so
+[ 39%] Built target oqsprovider
+[ 42%] Building C object test/CMakeFiles/oqs_test_signatures.dir/oqs_test_signatures.c.o
+[ 46%] Building C object test/CMakeFiles/oqs_test_signatures.dir/test_common.c.o
+[ 50%] Linking C executable oqs_test_signatures
+[ 50%] Built target oqs_test_signatures
+[ 53%] Building C object test/CMakeFiles/oqs_test_kems.dir/oqs_test_kems.c.o
+[ 57%] Building C object test/CMakeFiles/oqs_test_kems.dir/test_common.c.o
+[ 60%] Linking C executable oqs_test_kems
+[ 60%] Built target oqs_test_kems
+[ 64%] Building C object test/CMakeFiles/oqs_test_groups.dir/oqs_test_groups.c.o
+[ 67%] Building C object test/CMakeFiles/oqs_test_groups.dir/test_common.c.o
+[ 71%] Building C object test/CMakeFiles/oqs_test_groups.dir/tlstest_helpers.c.o
+[ 75%] Linking C executable oqs_test_groups
+[ 75%] Built target oqs_test_groups
+[ 78%] Building C object test/CMakeFiles/oqs_test_tlssig.dir/oqs_test_tlssig.c.o
+[ 82%] Building C object test/CMakeFiles/oqs_test_tlssig.dir/test_common.c.o
+[ 85%] Building C object test/CMakeFiles/oqs_test_tlssig.dir/tlstest_helpers.c.o
+[ 89%] Linking C executable oqs_test_tlssig
+[ 89%] Built target oqs_test_tlssig
+[ 92%] Building C object test/CMakeFiles/oqs_test_endecode.dir/oqs_test_endecode.c.o
+[ 96%] Building C object test/CMakeFiles/oqs_test_endecode.dir/test_common.c.o
+[100%] Linking C executable oqs_test_endecode
+[100%] Built target oqs_test_endecode
+
+```
+
+接着，[配置openssl3到系统环境变量](https://zhuanlan.zhihu.com/p/662481058)中
+在/etc/profile中添加如下内容，并使得配置生效
+```bash
+export OPENSSL_PATH=/home/hxw/Desktop/oqs-provider-main/.local/bin
+export PATH=$OPENSSL_PATH:$PATH
+``` 
+```bash
+hxw@ubuntu:~$ sudo gedit /etc/profile
+
+(gedit:2136): Tepl-WARNING **: 22:24:48.563: GVfs metadata is not supported. Fallback to TeplMetadataManager. Either GVfs is not correctly installed or GVfs metadata are not supported on this platform. In the latter case, you should configure Tepl with --disable-gvfs-metadata.
+hxw@ubuntu:~$ source /etc/profile
+hxw@ubuntu:~$ printenv PATH | grep openssl
+hxw@ubuntu:~$ printenv PATH | grep local
+/home/hxw/Desktop/oqs-provider-main/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+hxw@ubuntu:~$ openssl version
+OpenSSL 3.3.0-dev  (Library: OpenSSL 3.3.0-dev )
+
+```
+![Alt text](image-11.png)
+
+最终，生成的oqsprovider.so的路径为/home/hxw/Desktop/oqs-provider-main/_build/lib
+
+***下面需要将oqsprovider注册到openssl系统中***
+使用下述命令之后，可以不用再指定-provider的路径了
+``` bash
+export OPENSSL_MODULES=/home/hxw/Desktop/oqs-provider-main/_build/lib
+```
+
+``` bash
+hxw@ubuntu:~/Desktop/oqs-provider-main/.local/lib64/ossl-modules$ openssl list -providers
+Providers:
+  default
+    name: OpenSSL Default Provider
+    version: 3.3.0
+    status: active
+hxw@ubuntu:~/Desktop/oqs-provider-main/.local/lib64/ossl-modules$ cp /home/hxw/Desktop/oqs-provider-main/_build/lib/oqsprovider.so /home/hxw/Desktop/oqs-provider-main/.local/lib64/ossl-modules/oqsprovider.so
+hxw@ubuntu:~/Desktop/oqs-provider-main/.local/lib64/ossl-modules$ ls -l
+total 4700
+-rwxr-xr-x 1 hxw hxw  171368 Jan 20 19:28 legacy.so
+-rwxrwxr-x 1 hxw hxw 4640320 Jan 21 05:26 oqsprovider.so
+```
+
+在调用oqs-provider中集成的测试脚本时，能够正确地输出相关的信息
+``` bash
+hxw@ubuntu:~/Desktop/oqs-provider-main$ ./scripts/runtests.sh 
+Test setup:
+LD_LIBRARY_PATH=/home/hxw/Desktop/oqs-provider-main/.local/lib64
+OPENSSL_APP=/home/hxw/Desktop/oqs-provider-main/openssl/apps/openssl
+OPENSSL_CONF=/home/hxw/Desktop/oqs-provider-main/scripts/openssl-ca.cnf
+OPENSSL_MODULES=/home/hxw/Desktop/oqs-provider-main/_build/lib
+No OQS-OpenSSL111 interop test because of absence of docker
+Version information:
+OpenSSL 3.3.0-dev  (Library: OpenSSL 3.3.0-dev )
+Providers:
+  default
+    name: OpenSSL Default Provider
+    version: 3.3.0
+    status: active
+    build info: 3.3.0-dev
+    gettable provider parameters:
+      name: pointer to a UTF8 encoded string (arbitrary size)
+      version: pointer to a UTF8 encoded string (arbitrary size)
+      buildinfo: pointer to a UTF8 encoded string (arbitrary size)
+      status: integer (arbitrary size)
+  oqsprovider
+    name: OpenSSL OQS Provider
+    version: 0.5.3-dev
+    status: active
+    build info: OQS Provider v.0.5.3-dev () based on liboqs v.0.10.0-dev
+    gettable provider parameters:
+      name: pointer to a UTF8 encoded string (arbitrary size)
+      version: pointer to a UTF8 encoded string (arbitrary size)
+      buildinfo: pointer to a UTF8 encoded string (arbitrary size)
+      status: integer (arbitrary size)
+Cert gen/verify, CMS sign/verify, CA tests for all enabled OQS signature algorithms commencing: 
+.......................
+External interop tests commencing
+ Cloudflare:
+kex=X25519Kyber768Draft00
+kex=X25519Kyber512Draft00
+Test project /home/hxw/Desktop/oqs-provider-main/_build
+    Start 1: oqs_signatures
+1/5 Test #1: oqs_signatures ...................   Passed   11.13 sec
+    Start 2: oqs_kems
+2/5 Test #2: oqs_kems .........................   Passed    1.54 sec
+    Start 3: oqs_groups
+3/5 Test #3: oqs_groups .......................   Passed    1.81 sec
+    Start 4: oqs_tlssig
+4/5 Test #4: oqs_tlssig .......................   Passed    8.74 sec
+    Start 5: oqs_endecode
+5/5 Test #5: oqs_endecode .....................   Passed   20.08 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =  43.35 sec
+
+All oqsprovider tests passed.
+ 
+```
+
+```bash
+hxw@ubuntu:~/Desktop/oqs-provider-main/.local/ssl$ sudo gedit openssl.cnf
+
+(gedit:4308): Tepl-WARNING **: 05:52:46.126: GVfs metadata is not supported. Fallback to TeplMetadataManager. Either GVfs is not correctly installed or GVfs metadata are not supported on this platform. In the latter case, you should configure Tepl with --disable-gvfs-metadata.
+
+
+hxw@ubuntu:~/Desktop/oqs-provider-main/.local/ssl$ sudo gedit /etc/ssl/openssl.cnf 
+
+(gedit:4331): Tepl-WARNING **: 05:54:14.348: GVfs metadata is not supported. Fallback to TeplMetadataManager. Either GVfs is not correctly installed or GVfs metadata are not supported on this platform. In the latter case, you should configure Tepl with --disable-gvfs-metadata.
+
+hxw@ubuntu:~/Desktop/oqs-provider-main/.local/ssl$ sudo gedit /home/hxw/Desktop/oqs-provider-main/openssl/apps/openssl.cnf
+
+(gedit:4394): Tepl-WARNING **: 05:58:03.725: GVfs metadata is not supported. Fallback to TeplMetadataManager. Either GVfs is not correctly installed or GVfs metadata are not supported on this platform. In the latter case, you should configure Tepl with --disable-gvfs-metadata.
+
+```
+
+将下述环境变量写到/etc/profile中，便能将oqsprovider添加到openssl的provider列表中
+```bash
+hxw@ubuntu:~$ export LD_LIBRARY_PATH=/home/hxw/Desktop/oqs-provider-main/.local/lib64
+hxw@ubuntu:~$ export OPENSSL_APP=/home/hxw/Desktop/oqs-provider-main/openssl/apps/openssl
+hxw@ubuntu:~$ export OPENSSL_CONF=/home/hxw/Desktop/oqs-provider-main/scripts/openssl-ca.cnf
+hxw@ubuntu:~$ export OPENSSL_MODULES=/home/hxw/Desktop/oqs-provider-main/_build/lib
+```
+
+> openssl version -d可以用来查看相关的路径配置
+
+### A.e oqs-provider的使用
+[官方文档的使用教程](https://github.com/open-quantum-safe/oqs-provider/blob/main/USAGE.md#running-a-client-to-interact-with-quantum-safe-kem-algorithms)
+主要包括一些命令的配置等等
+
+#### A.e.a 显示使用命令行进行调用
+使用下述命令查看oqsprovider中提供的签名算法
+```bash
+openssl list -signature-algorithms -provider-path /home/hxw/Desktop/oqs-provider-main/_build/lib -provider oqsprovider
+openssl list -kem-algorithms -provider-path /home/hxw/Desktop/oqs-provider-main/_build/lib -provider oqsprovider
+```
+#### A.e.b C API
+
+#### A.e.c 系统文件
+
+
+### A.f openssl中openssl s_server和s_client的连接
+[oqs-openssl1.1.1中running](https://github.com/open-quantum-safe/openssl?tab=readme-ov-file)
+首先生成一个CA的根证书，然后服务端生成自己的密钥对并让CA签名。客户端选定KEX的方式和服务端交互
+
+生成签名文件
+```
+openssl req -x509 -new -newkey dilithium3 -keyout dilithium3_CA.key -out dilithium3_CA.crt -nodes -subj "/CN=test CA" -days 365 -config ~/Desktop/oqs-provider-main/openssl/apps/openssl.cnf -provider-path /home/hxw/Desktop/oqs-provider-main/_build/lib -provider oqsprovider
+```
+
+### A.g 使用openssl进行集成的例子
+https://github.com/open-quantum-safe/oqs-demos
+包括httpd、wireshark等
+
+### A.h oqs-provider 将liboqs接入到openssl的接口代码阅读
+根据一般的provider的编写规范，一般都会写一个新的provider_init函数，观察下面的截图，可以得出结论，oqs-provider也是以provider的形式接入的
+![Alt text](image-12.png)
+
+### 
 # openssl
 ## 代码结构
 demos下给出了一些样例->看下能不能跑起来

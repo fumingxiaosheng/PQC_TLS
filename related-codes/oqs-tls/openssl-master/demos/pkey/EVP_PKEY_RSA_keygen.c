@@ -41,7 +41,7 @@ static EVP_PKEY *generate_rsa_key_long(OSSL_LIB_CTX *libctx, unsigned int bits)
     /* Create context using RSA algorithm. "RSA-PSS" could also be used here. */
     genctx = EVP_PKEY_CTX_new_from_name(libctx, "RSA", propq);
     if (genctx == NULL) {
-        fprintf(stderr, "EVP_PKEY_CTX_new_from_name() failed\n");
+        fprintf(stderr, "EVP_PKEY_CTX_new_from_name() failed\n"); //使用名字来进行CTX的初始化
         goto cleanup;
     }
 
