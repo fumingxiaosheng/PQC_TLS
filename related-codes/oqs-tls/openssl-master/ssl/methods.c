@@ -7,6 +7,7 @@
  * https://www.openssl.org/source/license.html
  */
 
+/*这段代码提供了创建和管理 TLS/SSL 和 DTLS 连接所需的方法，使得 OpenSSL 库能够支持不同版本的 TLS/SSL 和 DTLS 协议。*/
 #include <stdio.h>
 #include <openssl/macros.h>
 #include <openssl/objects.h>

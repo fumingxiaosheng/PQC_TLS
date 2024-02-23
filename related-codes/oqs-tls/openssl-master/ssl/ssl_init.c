@@ -88,6 +88,10 @@ static void ssl_library_stop(void)
  * called prior to any threads making calls to any OpenSSL functions,
  * i.e. passing a non-null settings value is assumed to be single-threaded.
  */
+
+/*2024-2-23:
+用于初始化openssl库
+和clienthello之间的关系是什么呢？*/
 int OPENSSL_init_ssl(uint64_t opts, const OPENSSL_INIT_SETTINGS *settings)
 {
     static int stoperrset = 0;
