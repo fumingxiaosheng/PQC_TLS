@@ -56,3 +56,12 @@ hxw@LAPTOP-QFLFNNQO:~/exp/demos/bio$ ./server-conf
 根据服务端的报错，不支持对应的签名算法，那么看一下非conf版本的代码
 
 ![alt text](image-31.png)
+
+在注释掉对于签名算法的要求之后，发现能够使用，但是通过tcpdump无法抓包成功
+
+开始在vm虚拟机上安装wireshark，企图正确抓包并进行分析
+
+在1.更改了系统环境变量2.安装wireshark的情况下，能够抓到正确的包
+![alt text](image-32.png)
+
+[对TLS包进行分析的博客](https://blog.csdn.net/simonchi/article/details/107563574)

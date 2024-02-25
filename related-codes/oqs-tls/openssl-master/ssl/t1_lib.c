@@ -3709,6 +3709,8 @@ static const SIGALG_LOOKUP *find_sig_alg(SSL_CONNECTION *s, X509 *x,
  * a fatal error: we will either try another certificate or not present one
  * to the server. In this case no error is set.
  */
+/*2024-2-23:
+*/
 int tls_choose_sigalg(SSL_CONNECTION *s, int fatalerrs)
 {
     const SIGALG_LOOKUP *lu = NULL;
@@ -3717,6 +3719,7 @@ int tls_choose_sigalg(SSL_CONNECTION *s, int fatalerrs)
     s->s3.tmp.cert = NULL;
     s->s3.tmp.sigalg = NULL;
 
+    //如果SSL连接使用TLS1.3协议
     if (SSL_CONNECTION_IS_TLS13(s)) {
         lu = find_sig_alg(s, NULL, NULL);
         if (lu == NULL) {
@@ -3727,6 +3730,7 @@ int tls_choose_sigalg(SSL_CONNECTION *s, int fatalerrs)
             return 0;
         }
     } else {
+        //在非TLS1.3且密码套件不需要证书时，直接返回成功
         /* If ciphersuite doesn't require a cert nothing to do */
         if (!(s->s3.tmp.new_cipher->algorithm_auth & SSL_aCERT))
             return 1;

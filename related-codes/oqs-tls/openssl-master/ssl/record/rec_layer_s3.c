@@ -858,7 +858,7 @@ int ssl3_read_bytes(SSL *ssl, uint8_t type, uint8_t *recvd_type,
         } else if (alert_level == SSL3_AL_FATAL || is_tls13) {
             s->rwstate = SSL_NOTHING;
             s->s3.fatal_alert = alert_descr;
-            SSLfatal_data(s, SSL_AD_NO_ALERT,
+            SSLfatal_data(s, SSL_AD_NO_ALERT, //发送一个致命错误
                           SSL_AD_REASON_OFFSET + alert_descr,
                           "SSL alert number %d", alert_descr);
             s->shutdown |= SSL_RECEIVED_SHUTDOWN;

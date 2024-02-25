@@ -8,7 +8,8 @@ Port = 4433
 
 # Disable TLS v1.2 for test.
 # Protocol = ALL, -TLSv1.2
-# Only support 3 curves
+# Only support 3 curves 
+# 2024-2-23:这里是指定了可以使用的密码套件类型吗
 Curves = P-521:P-384:P-256
 
 # Restricted signature algorithms

@@ -1804,7 +1804,7 @@ struct ssl_connection_st {
     size_t client_cert_type_len;
     unsigned char *server_cert_type;
     size_t server_cert_type_len;
-};
+}; 
 
 # define SSL_CONNECTION_FROM_SSL_ONLY_int(ssl, c) \
     ((ssl) == NULL ? NULL                         \
