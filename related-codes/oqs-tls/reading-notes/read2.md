@@ -166,7 +166,13 @@ TODO:去看一下openssl-oqs里面是如何定义对于后量子密码的支持�
 对于group选项给出一些奇怪的东西，是能够正确识别的，但是在抓包的过程中就是无法正确地进行识别
 ![alt text](image-38.png)
 
-TODO:
+> TODO:
+
 1.liboqs中的通用密码套件接口是什么？
-2.openssl的server命令行中是否真正使用了kyber
+
+2.openssl的server命令行中是否真正使用了kyber，论文里基本上都是使用的密码套件的形式来进行，但是这里却仅仅指定了kex
+
 3.代码的server是否对于配置文件中的内容有新的支持？
+
+# 2024-2-26
+1.TLS的handshake过程最后是否会发送finished呢？
