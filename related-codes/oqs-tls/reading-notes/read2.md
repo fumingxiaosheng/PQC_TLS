@@ -176,3 +176,33 @@ TODO:去看一下openssl-oqs里面是如何定义对于后量子密码的支持�
 
 # 2024-2-26
 1.TLS的handshake过程最后是否会发送finished呢？
+2.报错40似乎是因为[TLS的报错机制](https://www.rfc-editor.org/rfc/rfc8446#section-6)
+![alt text](image-39.png)
+
+3.TLS协议的再学习
+![alt text](image-40.png)
+在kex阶段之后，后续的阶段都是被加密了的
+
+client hello和Server hello决定了最终的共享密钥，双方的临时密钥应该放在key_share拓展中
+![alt text](image-41.png)
+
+serverhello后面的application data应该都是被加密过了的
+![alt text](image-42.png)
+
+# 2024-2-27
+1.阅读论文 Benchmarking Post-Quantum Cryptography in TLS
+TLS进行密钥交换时，会在supported groups中指明自己支持的组，然后在keyshare中给出待交换的值
+kem替代TLS一般的密钥交换时，会clienthello替换keyshare为自己的kem公钥，serverhello替换keyshare为使用kem公钥分装后的临时密钥
+混合模式下，openssl（修改了ssl目录）会调用libcrypto下的ECDH算法，以及liboqs下的后量子KEM算法
+![alt text](image-43.png)
+
+> TODO:oqs-openssl中到底有没有修改ssl目录来支持进行kem密钥交换呢？
+
+2.阅读论文
+每个密码套件包含的信息
+![alt text](image-44.png)
+
+liboqs的通用密码套件存在的局限:无法适用于真实的场景中
+![alt text](image-45.png)
+同时，在论文Post-Quantum Key Exchange for the Internet and the Open Quantum Safe Project中，也提到了liboqs的通用密码套件，其指出，通过在编译时确定liboqs支持的套件中的算法内容，可以只修改liboqs而无需修改ssl目录
+![alt text](image-46.png)
