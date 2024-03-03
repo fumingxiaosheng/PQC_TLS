@@ -931,3 +931,756 @@ hxw@LAPTOP-QFLFNNQO:~/exp/oqs-provider-test/oqs-provider-hxw/.local/bin$ printen
 ```
 TODO:找到能够修改已知openssl使用版本的方法，并测试修改后的ctruprime是否有用
 
+# 2024-3-3
+通过which openssl命令，得到似乎会调用新的openssl
+``` bash
+which openssl
+/home/hxw/exp/oqs-provider-test/oqs-provider-hxw/.local/bin/openssl
+```
+此时修改系统环境变量如下所示
+```bash
+export OPENSSL_PATH=/home/hxw/exp/oqs-provider-test/oqs-provider-hxw/.local/bin
+export PATH=$OPENSSL_PATH:$PATH
+export LD_LIBRARY_PATH=/home/hxw/exp/oqs-provider-test/oqs-provider-hxw/.local/lib64
+export OPENSSL_APP=/home/hxw/exp/oqs-provider-test/oqs-provider-hxw/openssl/apps/openssl
+export OPENSSL_CONF=/home/hxw/exp/oqs-provider-test/oqs-provider-hxw/scripts/openssl-ca.cnf
+export OPENSSL_MODULES=/home/hxw/exp/oqs-provider-test/oqs-provider-hxw/_build/lib
+export C_INCLUDE_PATH=$C_INCLUDE_PATH:/home/hxw/exp/oqs-provider-test/oqs-provider-hxw/.local/include
+
+export OPENSSLDIR=/home/hxw/exp/oqs-provider-test/oqs-provider-hxw/.local/ssl
+```
+
+再次重新运行命令如下所示
+```bash
+hxw@LAPTOP-QFLFNNQO:~/exp$ openssl version -d
+OPENSSLDIR: "/home/hxw/exp/oqs-provider-test/oqs-provider-hxw/.local/ssl"
+```
+
+此时，却发现并没有将ctruprime653安装到oqsprovider中
+``` bash
+hxw@LAPTOP-QFLFNNQO:~/exp/certs$ openssl list -kem-algorithms -provider oqsprovider | grep ctruprime653
+```
+
+在liboqs-hxw中，存在ctruprime.h头文件
+![alt text](image-66.png)
+
+在openssl的include文件夹下，存在kem_ctruprime.h文件
+![alt text](image-67.png)
+
+**首先确定liboqs中已经集成了ctruprime653**
+``` bash
+/_build/tests$ ./test_kem ctruprime653
+Testing KEM algorithms using liboqs version 0.10.0-dev
+Configuration info
+==================
+Target platform:  x86_64-Linux-5.10.16.3-microsoft-standard-WSL2
+Compiler:         gcc (9.4.0)
+Compile options:  [-Wa,--noexecstack;-O3;-fomit-frame-pointer;-fdata-sections;-ffunction-sections;-Wl,--gc-sections;-Wbad-function-cast]
+OQS version:      0.10.0-dev
+Git commit:       
+OpenSSL enabled:  Yes (OpenSSL 3.3.0-dev )
+AES:              NI
+SHA-2:            OpenSSL
+SHA-3:            C
+OQS build flags:  OQS_DIST_BUILD OQS_OPT_TARGET=generic CMAKE_BUILD_TYPE=Release 
+CPU exts active:  ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+================================================================================
+Sample computation for KEM Ctruprime653
+================================================================================
+shared secrets are equal
+```
+
+**检查oqsprovider**的接入
+首先检查fullbuild.sh中是否调用了generate.py文件
+![alt text](image-68.png)
+检查oqsprovider中关于nid定义部分
+
+
+![alt text](image-69.png)
+
+![alt text](image-70.png)
+
+![alt text](image-71.png)
+
+![alt text](image-72.png)
+
+查看在vm虚拟机上的版本，发现可能是通过运行什么文件导致了oqsprov文件的修改
+![alt text](image-73.png)
+
+重新运行python3 
+```bash
+hxw@LAPTOP-QFLFNNQO:~/exp/oqs-provider-test/oqs-provider-hxw$ python3 ./oqs-template/generate.py
+load_config
+file_get_contents
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+complete_config
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo640aes', 'nid': '0x0200', 'nid_hybrid': '0x2F00', 'oqs_alg': 'OQS_KEM_alg_frodokem_640_aes', 'extra_nids': {'current': [{'hybrid_group': 'x25519', 'nid': '0x2F80', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.1'}]}, 'hybrids': [{'hybrid_group': 'x25519', 'nid': '0x2F80', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.1'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo640shake', 'nid': '0x0201', 'nid_hybrid': '0x2F01', 'oqs_alg': 'OQS_KEM_alg_frodokem_640_shake', 'extra_nids': {'current': [{'hybrid_group': 'x25519', 'nid': '0x2F81', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.2'}]}, 'hybrids': [{'hybrid_group': 'x25519', 'nid': '0x2F81', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.2'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo976aes', 'nid': '0x0202', 'nid_hybrid': '0x2F02', 'oqs_alg': 'OQS_KEM_alg_frodokem_976_aes', 'extra_nids': {'current': [{'hybrid_group': 'x448', 'nid': '0x2F82', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.3'}]}, 'hybrids': [{'hybrid_group': 'x448', 'nid': '0x2F82', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.3'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo976shake', 'nid': '0x0203', 'nid_hybrid': '0x2F03', 'oqs_alg': 'OQS_KEM_alg_frodokem_976_shake', 'extra_nids': {'current': [{'hybrid_group': 'x448', 'nid': '0x2F83', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.4'}]}, 'hybrids': [{'hybrid_group': 'x448', 'nid': '0x2F83', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.4'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo1344aes', 'nid': '0x0204', 'nid_hybrid': '0x2F04', 'oqs_alg': 'OQS_KEM_alg_frodokem_1344_aes', 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo1344shake', 'nid': '0x0205', 'nid_hybrid': '0x2F05', 'oqs_alg': 'OQS_KEM_alg_frodokem_1344_shake', 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'CRYSTALS-Kyber', 'name_group': 'kyber512', 'nid': '0x023A', 'oid': '1.3.6.1.4.1.22554.5.6.1', 'nid_hybrid': '0x2F3A', 'hybrid_oid': '1.3.6.1.4.1.22554.5.7.1', 'oqs_alg': 'OQS_KEM_alg_kyber_512', 'extra_nids': {'current': [{'hybrid_group': 'x25519', 'hybrid_oid': '1.3.6.1.4.1.22554.5.8.1', 'nid': '0x2F39', 'bit_security': 128}], 'old': [{'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'nid': '0x020F'}, {'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'hybrid_group': 'secp256_r1', 'nid': '0x2F0F'}, {'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'hybrid_group': 'x25519', 'nid': '0x2F26'}]}, 'hybrids': [{'hybrid_group': 'x25519', 'hybrid_oid': '1.3.6.1.4.1.22554.5.8.1', 'nid': '0x2F39', 'bit_security': 128}]}
+file_get_contents
+nist_to_bits
+get_kem_nistlevel {'family': 'CRYSTALS-Kyber', 'name_group': 'kyber768', 'nid': '0x023C', 'oid': '1.3.6.1.4.1.22554.5.6.2', 'nid_hybrid': '0x2F3C', 'extra_nids': {'current': [{'hybrid_group': 'x448', 'nid': '0x2F90', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.5'}, {'hybrid_group': 'x25519', 'nid': '0x6399', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.6'}, {'hybrid_group': 'p256', 'nid': '0x639A', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.7'}], 'old': [{'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'nid': '0x0210'}, {'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'hybrid_group': 'secp384_r1', 'nid': '0x2F10'}]}, 'oqs_alg': 'OQS_KEM_alg_kyber_768', 'hybrids': [{'hybrid_group': 'x448', 'nid': '0x2F90', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.5'}, {'hybrid_group': 'x25519', 'nid': '0x6399', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.6'}, {'hybrid_group': 'p256', 'nid': '0x639A', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.7'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'CRYSTALS-Kyber', 'name_group': 'kyber1024', 'nid': '0x023D', 'oid': '1.3.6.1.4.1.22554.5.6.3', 'nid_hybrid': '0x2F3D', 'extra_nids': {'old': [{'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'nid': '0x0211'}, {'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'hybrid_group': 'secp521_r1', 'nid': '0x2F11'}]}, 'oqs_alg': 'OQS_KEM_alg_kyber_1024', 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'BIKE', 'name_group': 'bikel1', 'implementation_version': '5.1', 'nid': '0x0241', 'nid_hybrid': '0x2F41', 'oqs_alg': 'OQS_KEM_alg_bike_l1', 'extra_nids': {'current': [{'hybrid_group': 'x25519', 'nid': '0x2FAE', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.8'}], 'old': [{'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'nid': '0x0238'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'x25519', 'nid': '0x2F37'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'secp256_r1', 'nid': '0x2F38'}]}, 'hybrids': [{'hybrid_group': 'x25519', 'nid': '0x2FAE', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.8'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'BIKE', 'name_group': 'bikel3', 'implementation_version': '5.1', 'nid': '0x0242', 'nid_hybrid': '0x2F42', 'oqs_alg': 'OQS_KEM_alg_bike_l3', 'extra_nids': {'current': [{'hybrid_group': 'x448', 'nid': '0x2FAF', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.9'}], 'old': [{'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'nid': '0x023B'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'secp384_r1', 'nid': '0x2F3B'}]}, 'hybrids': [{'hybrid_group': 'x448', 'nid': '0x2FAF', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.9'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'BIKE', 'name_group': 'bikel5', 'implementation_version': '5.1', 'nid': '0x0243', 'nid_hybrid': '0x2F43', 'oqs_alg': 'OQS_KEM_alg_bike_l5', 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'HQC', 'name_group': 'hqc128', 'nid': '0x0244', 'nid_hybrid': '0x2F44', 'oqs_alg': 'OQS_KEM_alg_hqc_128', 'extra_nids': {'current': [{'hybrid_group': 'x25519', 'nid': '0x2FB0', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.10'}], 'old': [{'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'nid': '0x022C'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'secp256_r1', 'nid': '0x2F2C'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'x25519', 'nid': '0x2FAC'}]}, 'hybrids': [{'hybrid_group': 'x25519', 'nid': '0x2FB0', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.10'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'HQC', 'name_group': 'hqc192', 'nid': '0x0245', 'nid_hybrid': '0x2F45', 'oqs_alg': 'OQS_KEM_alg_hqc_192', 'extra_nids': {'current': [{'hybrid_group': 'x448', 'nid': '0x2FB1', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.11'}], 'old': [{'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'nid': '0x022D'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'secp384_r1', 'nid': '0x2F2D'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'x448', 'nid': '0x2FAD'}]}, 'hybrids': [{'hybrid_group': 'x448', 'nid': '0x2FB1', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.11'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'HQC', 'name_group': 'hqc256', 'nid': '0x0246', 'nid_hybrid': '0x2F46', 'oqs_alg': 'OQS_KEM_alg_hqc_256', 'extra_nids': {'old': [{'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'nid': '0x022E'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'secp521_r1', 'nid': '0x2F2E'}]}, 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'ctruprime', 'name_group': 'ctruprime653', 'nid': '0x0247', 'nid_hybrid': '0x2F47', 'oqs_alg': 'OQS_KEM_alg_ctruprime_653', 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+populate
+file_get_contents
+file_put_contents
+populate
+file_get_contents
+file_put_contents
+populate
+file_get_contents
+file_put_contents
+populate
+file_get_contents
+file_put_contents
+populate
+file_get_contents
+file_put_contents
+populate
+file_get_contents
+file_put_contents
+populate
+file_get_contents
+file_put_contents
+populate
+file_get_contents
+file_put_contents
+populate
+file_get_contents
+file_put_contents
+populate
+file_get_contents
+file_put_contents
+load_config
+file_get_contents
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_tmp_kem_oid
+complete_config
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo640aes', 'nid': '0x0200', 'nid_hybrid': '0x2F00', 'oqs_alg': 'OQS_KEM_alg_frodokem_640_aes', 'extra_nids': {'current': [{'hybrid_group': 'x25519', 'nid': '0x2F80', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.40'}]}, 'hybrids': [{'hybrid_group': 'x25519', 'nid': '0x2F80', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.40'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo640shake', 'nid': '0x0201', 'nid_hybrid': '0x2F01', 'oqs_alg': 'OQS_KEM_alg_frodokem_640_shake', 'extra_nids': {'current': [{'hybrid_group': 'x25519', 'nid': '0x2F81', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.41'}]}, 'hybrids': [{'hybrid_group': 'x25519', 'nid': '0x2F81', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.41'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo976aes', 'nid': '0x0202', 'nid_hybrid': '0x2F02', 'oqs_alg': 'OQS_KEM_alg_frodokem_976_aes', 'extra_nids': {'current': [{'hybrid_group': 'x448', 'nid': '0x2F82', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.42'}]}, 'hybrids': [{'hybrid_group': 'x448', 'nid': '0x2F82', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.42'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo976shake', 'nid': '0x0203', 'nid_hybrid': '0x2F03', 'oqs_alg': 'OQS_KEM_alg_frodokem_976_shake', 'extra_nids': {'current': [{'hybrid_group': 'x448', 'nid': '0x2F83', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.43'}]}, 'hybrids': [{'hybrid_group': 'x448', 'nid': '0x2F83', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.43'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo1344aes', 'nid': '0x0204', 'nid_hybrid': '0x2F04', 'oqs_alg': 'OQS_KEM_alg_frodokem_1344_aes', 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'FrodoKEM', 'name_group': 'frodo1344shake', 'nid': '0x0205', 'nid_hybrid': '0x2F05', 'oqs_alg': 'OQS_KEM_alg_frodokem_1344_shake', 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'CRYSTALS-Kyber', 'name_group': 'kyber512', 'nid': '0x023A', 'oid': '1.3.6.1.4.1.22554.5.6.1', 'nid_hybrid': '0x2F3A', 'hybrid_oid': '1.3.6.1.4.1.22554.5.7.1', 'oqs_alg': 'OQS_KEM_alg_kyber_512', 'extra_nids': {'current': [{'hybrid_group': 'x25519', 'hybrid_oid': '1.3.6.1.4.1.22554.5.8.1', 'nid': '0x2F39', 'bit_security': 128}], 'old': [{'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'nid': '0x020F'}, {'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'hybrid_group': 'secp256_r1', 'nid': '0x2F0F'}, {'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'hybrid_group': 'x25519', 'nid': '0x2F26'}]}, 'hybrids': [{'hybrid_group': 'x25519', 'hybrid_oid': '1.3.6.1.4.1.22554.5.8.1', 'nid': '0x2F39', 'bit_security': 128}]}
+file_get_contents
+nist_to_bits
+get_kem_nistlevel {'family': 'CRYSTALS-Kyber', 'name_group': 'kyber768', 'nid': '0x023C', 'oid': '1.3.6.1.4.1.22554.5.6.2', 'nid_hybrid': '0x2F3C', 'extra_nids': {'current': [{'hybrid_group': 'x448', 'nid': '0x2F90', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.44'}, {'hybrid_group': 'x25519', 'nid': '0x6399', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.45'}, {'hybrid_group': 'p256', 'nid': '0x639A', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.46'}], 'old': [{'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'nid': '0x0210'}, {'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'hybrid_group': 'secp384_r1', 'nid': '0x2F10'}]}, 'oqs_alg': 'OQS_KEM_alg_kyber_768', 'hybrids': [{'hybrid_group': 'x448', 'nid': '0x2F90', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.44'}, {'hybrid_group': 'x25519', 'nid': '0x6399', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.45'}, {'hybrid_group': 'p256', 'nid': '0x639A', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.46'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'CRYSTALS-Kyber', 'name_group': 'kyber1024', 'nid': '0x023D', 'oid': '1.3.6.1.4.1.22554.5.6.3', 'nid_hybrid': '0x2F3D', 'extra_nids': {'old': [{'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'nid': '0x0211'}, {'implementation_version': 'NIST Round 2 submission', 'nist-round': 2, 'hybrid_group': 'secp521_r1', 'nid': '0x2F11'}]}, 'oqs_alg': 'OQS_KEM_alg_kyber_1024', 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'BIKE', 'name_group': 'bikel1', 'implementation_version': '5.1', 'nid': '0x0241', 'nid_hybrid': '0x2F41', 'oqs_alg': 'OQS_KEM_alg_bike_l1', 'extra_nids': {'current': [{'hybrid_group': 'x25519', 'nid': '0x2FAE', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.47'}], 'old': [{'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'nid': '0x0238'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'x25519', 'nid': '0x2F37'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'secp256_r1', 'nid': '0x2F38'}]}, 'hybrids': [{'hybrid_group': 'x25519', 'nid': '0x2FAE', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.47'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'BIKE', 'name_group': 'bikel3', 'implementation_version': '5.1', 'nid': '0x0242', 'nid_hybrid': '0x2F42', 'oqs_alg': 'OQS_KEM_alg_bike_l3', 'extra_nids': {'current': [{'hybrid_group': 'x448', 'nid': '0x2FAF', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.48'}], 'old': [{'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'nid': '0x023B'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'secp384_r1', 'nid': '0x2F3B'}]}, 'hybrids': [{'hybrid_group': 'x448', 'nid': '0x2FAF', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.48'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'BIKE', 'name_group': 'bikel5', 'implementation_version': '5.1', 'nid': '0x0243', 'nid_hybrid': '0x2F43', 'oqs_alg': 'OQS_KEM_alg_bike_l5', 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'HQC', 'name_group': 'hqc128', 'nid': '0x0244', 'nid_hybrid': '0x2F44', 'oqs_alg': 'OQS_KEM_alg_hqc_128', 'extra_nids': {'current': [{'hybrid_group': 'x25519', 'nid': '0x2FB0', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.49'}], 'old': [{'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'nid': '0x022C'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'secp256_r1', 'nid': '0x2F2C'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'x25519', 'nid': '0x2FAC'}]}, 'hybrids': [{'hybrid_group': 'x25519', 'nid': '0x2FB0', 'bit_security': 128, 'hybrid_oid': '1.3.9999.99.49'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'HQC', 'name_group': 'hqc192', 'nid': '0x0245', 'nid_hybrid': '0x2F45', 'oqs_alg': 'OQS_KEM_alg_hqc_192', 'extra_nids': {'current': [{'hybrid_group': 'x448', 'nid': '0x2FB1', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.50'}], 'old': [{'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'nid': '0x022D'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'secp384_r1', 'nid': '0x2F2D'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'x448', 'nid': '0x2FAD'}]}, 'hybrids': [{'hybrid_group': 'x448', 'nid': '0x2FB1', 'bit_security': 192, 'hybrid_oid': '1.3.9999.99.50'}]}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'HQC', 'name_group': 'hqc256', 'nid': '0x0246', 'nid_hybrid': '0x2F46', 'oqs_alg': 'OQS_KEM_alg_hqc_256', 'extra_nids': {'old': [{'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'nid': '0x022E'}, {'implementation_version': 'NIST Round 3 submission', 'nist-round': 3, 'hybrid_group': 'secp521_r1', 'nid': '0x2F2E'}]}, 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_kem_nistlevel {'family': 'ctruprime', 'name_group': 'ctruprime653', 'nid': '0x0247', 'nid_hybrid': '0x2F47', 'oqs_alg': 'OQS_KEM_alg_ctruprime_653', 'hybrids': []}
+file_get_contents
+nist_to_bits
+get_tmp_kem_oid
+get_tmp_kem_oid
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+get_sig_nistlevel
+file_get_contents
+nist_to_bits
+populate
+file_get_contents
+file_put_contents
+populate
+file_get_contents
+file_put_contents
+All files generated
+Written oqs-kem-info.md
+Written oqs-sig-info.md
+```
+
+此时上述并未出现ctruprime653的文件中都出现了对应的文件
+![alt text](image-74.png)
+
+此时重新进行fullbuild.sh
+```bash
+hxw@LAPTOP-QFLFNNQO:~/exp/oqs-provider-test/oqs-provider-hxw$ ./scripts/fullbuild.sh 
+```
+使用list kem能够观察到ctruprime653
+![alt text](image-75.png)
+
+此时再次运行服务端和客户端，运行的结果分别如下所示
+```bash
+hxw@LAPTOP-QFLFNNQO:~/exp/certs$ openssl s_server -cert dilithium3_srv.crt -key dilithium3_srv.key -www -tls1_3 -groups kyber768:ctruprime653
+Using default temp DH parameters
+ACCEPT
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+^C
+```
+
+```bash
+hxw@LAPTOP-QFLFNNQO:~/exp$ openssl s_client -groups ctruprime653
+Connecting to ::1
+CONNECTED(00000003)
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+depth=0 CN=test server
+verify error:num=20:unable to get local issuer certificate
+verify return:1
+depth=0 CN=test server
+verify error:num=21:unable to verify the first certificate
+verify return:1
+depth=0 CN=test server
+verify return:1
+---
+Certificate chain
+ 0 s:CN=test server
+   i:CN=test CA
+   a:PKEY: UNDEF, 192 (bit); sigalg: dilithium3
+   v:NotBefore: Feb 28 02:42:37 2024 GMT; NotAfter: Feb 27 02:42:37 2025 GMT
+---
+Server certificate
+-----BEGIN CERTIFICATE-----
+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
+AAAAAAACDRchKDE=
+-----END CERTIFICATE-----
+subject=CN=test server
+issuer=CN=test CA
+---
+No client certificate CA names sent
+Peer signature type: dilithium3
+---
+SSL handshake has read 9952 bytes and written 1379 bytes
+Verification error: unable to verify the first certificate
+---
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+Server public key is 192 bit
+This TLS version forbids renegotiation.
+Compression: NONE
+Expansion: NONE
+No ALPN negotiated
+Early data was not sent
+Verify return code: 21 (unable to verify the first certificate)
+---
+---
+Post-Handshake New Session Ticket arrived:
+SSL-Session:
+    Protocol  : TLSv1.3
+    Cipher    : TLS_AES_256_GCM_SHA384
+    Session-ID: 4ABFA73A35BECB17323803102028E7232C81A1A1A657714FA7E338451F1DD128
+    Session-ID-ctx: 
+    Resumption PSK: 259473D55CAC23C346C1527516D22C8949E4BE9EA0746DA602583C018302F52BD551B404F7AE0FB8018F0812C615E398
+    PSK identity: None
+    PSK identity hint: None
+    SRP username: None
+    TLS session ticket lifetime hint: 7200 (seconds)
+    TLS session ticket:
+    0000 - 8c e1 6f 2c 5c 55 08 51-fa fd aa 77 69 b2 24 5a   ..o,\U.Q...wi.$Z
+    0010 - 29 1e 6b 50 b3 f5 17 14-09 d1 8c 20 a4 93 f8 b4   ).kP....... ....
+    0020 - c9 9c c5 fb 74 d5 e3 dc-35 4a 00 71 0e 53 ea 53   ....t...5J.q.S.S
+    0030 - c2 c8 f6 d1 15 e7 94 12-56 48 85 39 bf b9 f9 b5   ........VH.9....
+    0040 - 8d 7b 3b 0b 25 e9 37 3a-26 7b 62 d8 8b 75 bd f1   .{;.%.7:&{b..u..
+    0050 - e7 1c b4 6a ff 17 47 d6-b9 a6 50 23 f4 ef ae 7a   ...j..G...P#...z
+    0060 - 7c 07 d6 f1 66 b9 0d 0f-62 9a 50 ea d0 d2 72 ca   |...f...b.P...r.
+    0070 - 11 8d d8 ce 69 34 73 69-94 13 68 33 a7 0a 98 97   ....i4si..h3....
+    0080 - 74 a3 f8 a2 71 3f 92 1b-3f a3 e6 53 49 37 61 ba   t...q?..?..SI7a.
+    0090 - 56 3e 71 6e 3a 66 6e 01-57 2b 96 a0 b9 5f 20 e0   V>qn:fn.W+..._ .
+    00a0 - bf 67 1b 90 ab fb 24 b2-37 bb 36 a1 ba fa 9e 11   .g....$.7.6.....
+    00b0 - 00 b4 4a b9 34 6f aa 9f-39 a9 07 06 a1 65 b6 c9   ..J.4o..9....e..
+    00c0 - 85 b1 eb b4 b2 47 1c 70-1d f9 8f 78 bb 0c 4e e6   .....G.p...x..N.
+
+    Start Time: 1709439485
+    Timeout   : 7200 (sec)
+    Verify return code: 21 (unable to verify the first certificate)
+    Extended master secret: no
+    Max Early Data: 0
+---
+read R BLOCK
+---
+Post-Handshake New Session Ticket arrived:
+SSL-Session:
+    Protocol  : TLSv1.3
+    Cipher    : TLS_AES_256_GCM_SHA384
+    Session-ID: CC987B6116959994975F355DFC981E1383A160DFA940718C775A16BD8D47BFD3
+    Session-ID-ctx: 
+    Resumption PSK: AD2C1F24197F431EB032B5141145B652F611FD673EEFAB9E04B39859C6B27D811205F8D73B8FF6F002EFCABEDBF7A10D
+    PSK identity: None
+    PSK identity hint: None
+    SRP username: None
+    TLS session ticket lifetime hint: 7200 (seconds)
+    TLS session ticket:
+    0000 - 8c e1 6f 2c 5c 55 08 51-fa fd aa 77 69 b2 24 5a   ..o,\U.Q...wi.$Z
+    0010 - a4 7d df e7 0c 18 87 96-62 f4 9b a6 e8 11 02 41   .}......b......A
+    0020 - f3 6e b5 28 fb aa b3 7c-ad 36 4a d1 df a5 d9 ed   .n.(...|.6J.....
+    0030 - 9b 32 2e 06 c2 54 59 bb-fd b0 e5 53 ce 8a 31 c4   .2...TY....S..1.
+    0040 - 18 62 74 71 a7 b5 a6 bf-89 48 43 0e 38 1b 22 28   .btq.....HC.8."(
+    0050 - b0 06 c1 4e da ac e1 2b-bd 55 c6 5c da b9 0e 22   ...N...+.U.\..."
+    0060 - 88 d0 e5 6b 6c 9b 61 e0-5f 67 97 7a 94 fc 66 9f   ...kl.a._g.z..f.
+    0070 - dd f4 89 4c 1c d8 1e 85-4c 73 b4 60 66 a3 97 70   ...L....Ls.`f..p
+    0080 - e4 03 40 19 29 81 7a 4f-3f fe c9 c6 c0 d0 aa b0   ..@.).zO?.......
+    0090 - f4 1d a2 4b 9c 27 2e bb-c3 00 37 6f d9 e9 a6 1c   ...K.'....7o....
+    00a0 - fb 7d a9 76 67 5c 77 e8-0f 4b 01 ce e9 77 59 49   .}.vg\w..K...wYI
+    00b0 - a0 8c 63 78 60 85 6f 0d-66 e3 7a 3d 41 7d d4 5d   ..cx`.o.f.z=A}.]
+    00c0 - b1 a5 b3 60 85 52 11 ad-b4 c4 6b d2 d7 26 0d e4   ...`.R....k..&..
+
+    Start Time: 1709439485
+    Timeout   : 7200 (sec)
+    Verify return code: 21 (unable to verify the first certificate)
+    Extended master secret: no
+    Max Early Data: 0
+---
+read R BLOCK
+GET /
+HTTP/1.0 200 ok
+Content-type: text/html
+
+<HTML><BODY BGCOLOR="#ffffff">
+<pre>
+
+s_server -cert dilithium3_srv.crt -key dilithium3_srv.key -www -tls1_3 -groups kyber768:ctruprime653 
+This TLS version forbids renegotiation.
+Ciphers supported in s_server binary
+TLSv1.3    :TLS_AES_256_GCM_SHA384    TLSv1.3    :TLS_CHACHA20_POLY1305_SHA256 
+TLSv1.3    :TLS_AES_128_GCM_SHA256    TLSv1.2    :ECDHE-ECDSA-AES256-GCM-SHA384 
+TLSv1.2    :ECDHE-RSA-AES256-GCM-SHA384 TLSv1.2    :DHE-RSA-AES256-GCM-SHA384 
+TLSv1.2    :ECDHE-ECDSA-CHACHA20-POLY1305 TLSv1.2    :ECDHE-RSA-CHACHA20-POLY1305 
+TLSv1.2    :DHE-RSA-CHACHA20-POLY1305 TLSv1.2    :ECDHE-ECDSA-AES128-GCM-SHA256 
+TLSv1.2    :ECDHE-RSA-AES128-GCM-SHA256 TLSv1.2    :DHE-RSA-AES128-GCM-SHA256 
+TLSv1.2    :ECDHE-ECDSA-AES256-SHA384 TLSv1.2    :ECDHE-RSA-AES256-SHA384   
+TLSv1.2    :DHE-RSA-AES256-SHA256     TLSv1.2    :ECDHE-ECDSA-AES128-SHA256 
+TLSv1.2    :ECDHE-RSA-AES128-SHA256   TLSv1.2    :DHE-RSA-AES128-SHA256     
+TLSv1.0    :ECDHE-ECDSA-AES256-SHA    TLSv1.0    :ECDHE-RSA-AES256-SHA      
+SSLv3      :DHE-RSA-AES256-SHA        TLSv1.0    :ECDHE-ECDSA-AES128-SHA    
+TLSv1.0    :ECDHE-RSA-AES128-SHA      SSLv3      :DHE-RSA-AES128-SHA        
+TLSv1.2    :RSA-PSK-AES256-GCM-SHA384 TLSv1.2    :DHE-PSK-AES256-GCM-SHA384 
+TLSv1.2    :RSA-PSK-CHACHA20-POLY1305 TLSv1.2    :DHE-PSK-CHACHA20-POLY1305 
+TLSv1.2    :ECDHE-PSK-CHACHA20-POLY1305 TLSv1.2    :AES256-GCM-SHA384         
+TLSv1.2    :PSK-AES256-GCM-SHA384     TLSv1.2    :PSK-CHACHA20-POLY1305     
+TLSv1.2    :RSA-PSK-AES128-GCM-SHA256 TLSv1.2    :DHE-PSK-AES128-GCM-SHA256 
+TLSv1.2    :AES128-GCM-SHA256         TLSv1.2    :PSK-AES128-GCM-SHA256     
+TLSv1.2    :AES256-SHA256             TLSv1.2    :AES128-SHA256             
+TLSv1.0    :ECDHE-PSK-AES256-CBC-SHA384 TLSv1.0    :ECDHE-PSK-AES256-CBC-SHA  
+SSLv3      :SRP-RSA-AES-256-CBC-SHA   SSLv3      :SRP-AES-256-CBC-SHA       
+TLSv1.0    :RSA-PSK-AES256-CBC-SHA384 TLSv1.0    :DHE-PSK-AES256-CBC-SHA384 
+SSLv3      :RSA-PSK-AES256-CBC-SHA    SSLv3      :DHE-PSK-AES256-CBC-SHA    
+SSLv3      :AES256-SHA                TLSv1.0    :PSK-AES256-CBC-SHA384     
+SSLv3      :PSK-AES256-CBC-SHA        TLSv1.0    :ECDHE-PSK-AES128-CBC-SHA256 
+TLSv1.0    :ECDHE-PSK-AES128-CBC-SHA  SSLv3      :SRP-RSA-AES-128-CBC-SHA   
+SSLv3      :SRP-AES-128-CBC-SHA       TLSv1.0    :RSA-PSK-AES128-CBC-SHA256 
+TLSv1.0    :DHE-PSK-AES128-CBC-SHA256 SSLv3      :RSA-PSK-AES128-CBC-SHA    
+SSLv3      :DHE-PSK-AES128-CBC-SHA    SSLv3      :AES128-SHA                
+TLSv1.0    :PSK-AES128-CBC-SHA256     SSLv3      :PSK-AES128-CBC-SHA        
+---
+Ciphers common between both SSL end points:
+TLS_AES_256_GCM_SHA384     TLS_CHACHA20_POLY1305_SHA256 TLS_AES_128_GCM_SHA256    
+ECDHE-ECDSA-AES256-GCM-SHA384 ECDHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-GCM-SHA384 
+ECDHE-ECDSA-CHACHA20-POLY1305 ECDHE-RSA-CHACHA20-POLY1305 DHE-RSA-CHACHA20-POLY1305 
+ECDHE-ECDSA-AES128-GCM-SHA256 ECDHE-RSA-AES128-GCM-SHA256 DHE-RSA-AES128-GCM-SHA256 
+ECDHE-ECDSA-AES256-SHA384  ECDHE-RSA-AES256-SHA384    DHE-RSA-AES256-SHA256     
+ECDHE-ECDSA-AES128-SHA256  ECDHE-RSA-AES128-SHA256    DHE-RSA-AES128-SHA256     
+ECDHE-ECDSA-AES256-SHA     ECDHE-RSA-AES256-SHA       DHE-RSA-AES256-SHA        
+ECDHE-ECDSA-AES128-SHA     ECDHE-RSA-AES128-SHA       DHE-RSA-AES128-SHA        
+AES256-GCM-SHA384          AES128-GCM-SHA256          AES256-SHA256             
+AES128-SHA256              AES256-SHA                 AES128-SHA
+Signature Algorithms: ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512:Ed25519:Ed448:ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512:RSA-PSS+SHA256:RSA-PSS+SHA384:RSA-PSS+SHA512:RSA-PSS+SHA256:RSA-PSS+SHA384:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512:ECDSA+SHA224:RSA+SHA224:DSA+SHA224:DSA+SHA256:DSA+SHA384:DSA+SHA512:dilithium2:p256_dilithium2:rsa3072_dilithium2:dilithium3:p384_dilithium3:dilithium5:p521_dilithium5:falcon512:p256_falcon512:rsa3072_falcon512:falcon1024:p521_falcon1024:sphincssha2128fsimple:p256_sphincssha2128fsimple:rsa3072_sphincssha2128fsimple:sphincssha2128ssimple:p256_sphincssha2128ssimple:rsa3072_sphincssha2128ssimple:sphincssha2192fsimple:p384_sphincssha2192fsimple:sphincsshake128fsimple:p256_sphincsshake128fsimple:rsa3072_sphincsshake128fsimple
+Shared Signature Algorithms: ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512:Ed25519:Ed448:ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512:RSA-PSS+SHA256:RSA-PSS+SHA384:RSA-PSS+SHA512:RSA-PSS+SHA256:RSA-PSS+SHA384:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512:ECDSA+SHA224:RSA+SHA224:dilithium2:p256_dilithium2:rsa3072_dilithium2:dilithium3:p384_dilithium3:dilithium5:p521_dilithium5:falcon512:p256_falcon512:rsa3072_falcon512:falcon1024:p521_falcon1024:sphincssha2128fsimple:p256_sphincssha2128fsimple:rsa3072_sphincssha2128fsimple:sphincssha2128ssimple:p256_sphincssha2128ssimple:rsa3072_sphincssha2128ssimple:sphincssha2192fsimple:p384_sphincssha2192fsimple:sphincsshake128fsimple:p256_sphincsshake128fsimple:rsa3072_sphincsshake128fsimple
+Supported groups: ctruprime653
+Shared groups: ctruprime653
+---
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+SSL-Session:
+    Protocol  : TLSv1.3
+    Cipher    : TLS_AES_256_GCM_SHA384
+    Session-ID: 7FB4C7D84855939AEBA12A7A198B45AB14BC11B952BE74A408B94A9810C23E14
+    Session-ID-ctx: 01000000
+    Resumption PSK: AD2C1F24197F431EB032B5141145B652F611FD673EEFAB9E04B39859C6B27D811205F8D73B8FF6F002EFCABEDBF7A10D
+    PSK identity: None
+    PSK identity hint: None
+    SRP username: None
+    Start Time: 1709439485
+    Timeout   : 7200 (sec)
+    Verify return code: 0 (ok)
+    Extended master secret: no
+    Max Early Data: 0
+---
+   0 items in the session cache
+   0 client connects (SSL_connect())
+   0 client renegotiates (SSL_connect())
+   0 client connects that finished
+   1 server accepts (SSL_accept())
+   0 server renegotiates (SSL_accept())
+   1 server accepts that finished
+   0 session cache hits
+   0 session cache misses
+   0 session cache timeouts
+   0 callback cache hits
+   0 cache full overflows (128 allowed)
+---
+no client certificate available
+</pre></BODY></HTML>
+
+closed
+```
+
+观察抓的包，能够验证已经成功使用ctruprime653完成了kem
+![alt text](image-76.png)
+
+
+**现在需要修改.fullbuild文件，使得能够正确运行generate文件**
+
+首先存档当前的系统环境变量文件
+
+``` sh
+export OPENSSL_PATH=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/bin
+export PATH=$OPENSSL_PATH:$PATH
+export LD_LIBRARY_PATH=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/lib64
+export OPENSSL_APP=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/openssl/apps/openssl
+export OPENSSL_CONF=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/scripts/openssl-ca.cnf
+export OPENSSL_MODULES=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/_build/lib
+export C_INCLUDE_PATH=$C_INCLUDE_PATH:/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/include
+
+export OPENSSLDIR=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/ssl
+```
+
+> 总结:
+> 
+> 1.注意环境变量的配置来使得版本的正确
+> 
+> ```bash 
+>export OPENSSL_PATH=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/bin
+>export PATH=$OPENSSL_PATH:$PATH
+>export LD_LIBRARY_PATH=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/lib64
+>export OPENSSL_APP=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/openssl/apps/openssl
+>export OPENSSL_CONF=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/scripts/openssl-ca.cnf
+>export OPENSSL_MODULES=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/_build/lib
+>export C_INCLUDE_PATH=$C_INCLUDE_PATH:/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/include
+>export OPENSSLDIR=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/ssl
+> ```
+> 2.注意在完成liboqs集成后，一般需要调用generate.py文件来完成oqs-provider的调用(已经写入了fullbuild.sh文件中)
+
