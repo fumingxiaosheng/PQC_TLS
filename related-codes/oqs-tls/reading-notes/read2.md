@@ -1684,3 +1684,1503 @@ export OPENSSLDIR=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/ssl
 > ```
 > 2.注意在完成liboqs集成后，一般需要调用generate.py文件来完成oqs-provider的调用(已经写入了fullbuild.sh文件中)
 
+## 2024-3-20 网络环境的搭建
+根据如下所示的显示，可能存在命名空间系统环境变量的差异
+```bash
+hxw@LAPTOP-QFLFNNQO:~/exp/oqs-provider-test2/oqs-provider-hxw/.local/bin$ sudo ip netns exec ns1 openssl version
+OpenSSL 1.1.1f  31 Mar 2020
+hxw@LAPTOP-QFLFNNQO:~/exp/oqs-provider-test2/oqs-provider-hxw/.local/bin$ sudo ip netns exec ns1 ./openssl version
+OpenSSL 3.3.0-dev  (Library: OpenSSL 3.3.0-dev )
+```
+> 解决办法:sudo ip netns exec ns1 bash使用这个命令，在每一个子空间中开启一个新的bash
+
+一些需要考虑到的问题
+1.是否需要搭建服务器来进行测试
+2.prime的优势体现在哪里
+3.需要测试的指标有哪些呢？怎么进行计算呢
+
+环境的模拟:
+丢包率、报文重复率、延迟
+
+测量指标
+1.握手的完成时间
+
+
+每一项因素的影响
+> 如果仅仅只是着眼在一个算法，会不会不太好
+
+
+![alt text](image-77.png)
+
+> 搭建的环境是否太简单，从实际的测量的结果出发，得到一些现实的丢包率等信息
+
+
+client端，使用s_timer进行测速
+server端，运行nginx服务器
+
+下面尝试安装nginx，然后使用s_server进行测试
+
+``` bash
+./configure --prefix=./hxw_nginx \
+                --with-debug \
+                --with-http_ssl_module \
+                --with-openssl=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/ \
+                --without-http_gzip_module \
+                --with-cc-opt="-I /home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/include/oqs" \
+                --with-ld-opt="-L /home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/lib";
+sed -i 's/libcrypto.a/libcrypto.a -loqs/g' objs/Makefile;
+```
+
+sudo apt-get install libpcre3-dev
+
+在运行configure的过程中，出现**zlib library is not used**的情况
+
+```bash
+Configuration summary
+  + using system PCRE library
+  + using OpenSSL library: /home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/
+  + zlib library is not used
+
+  nginx path prefix: "./hxw_nginx"
+  nginx binary file: "./hxw_nginx/sbin/nginx"
+  nginx modules path: "./hxw_nginx/modules"
+  nginx configuration prefix: "./hxw_nginx/conf"
+  nginx configuration file: "./hxw_nginx/conf/nginx.conf"
+  nginx pid file: "./hxw_nginx/logs/nginx.pid"
+  nginx error log file: "./hxw_nginx/logs/error.log"
+  nginx http access log file: "./hxw_nginx/logs/access.log"
+  nginx http client request body temporary files: "client_body_temp"
+  nginx http proxy temporary files: "proxy_temp"
+  nginx http fastcgi temporary files: "fastcgi_temp"
+  nginx http uwsgi temporary files: "uwsgi_temp"
+  nginx http scgi temporary files: "scgi_temp"
+  ```
+
+  产生报错的原因在于
+  ![alt text](image-78.png)
+
+  替换一下--with-openssl的路径
+  /home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/ssl
+
+
+``` bash
+./configure --prefix=./hxw_nginx  --with-openssl=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/ssl/ --with-cc-opt="-I /home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/include/oqs" --with-ld-opt="-L /home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/lib"  --with-debug --without-http_gzip_module
+
+
+sed -i 's/libcrypto.a/libcrypto.a -loqs/g' objs/Makefile;
+sed -i 's/EVP_MD_CTX_create/EVP_MD_CTX_new/g; s/EVP_MD_CTX_destroy/EVP_MD_CTX_free/g' src/event/ngx_event_openssl.c;
+make && make install;
+```
+
+
+
+运行 ./setup.sh报错
+```bash
+hxw@LAPTOP-QFLFNNQO:~/TLSPlatform/pq-tls-benchmark/emulation-exp/code/kex$ sudo ./setup.sh 
++++ pwd
+++ dirname /home/hxw/TLSPlatform/pq-tls-benchmark/emulation-exp/code/kex
++ ROOT=/home/hxw/TLSPlatform/pq-tls-benchmark/emulation-exp/code
++ OPENSSL=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/.local/bin/openssl
++ OPENSSL_CNF=/home/hxw/exp/oqs-provider-test2/oqs-provider-hxw/scripts/openssl-ca.cnf
++ NGINX_APP=/home/hxw/TLSPlatform/pq-tls-benchmark/nginx-1.17.5/hxw_nginx/sbin
++ NGINX_CONF_DIR=/home/hxw/TLSPlatform/pq-tls-benchmark/nginx-1.17.5/hxw_nginx/conf
++ make s_timer.o
+make: 's_timer.o' is up to date.
++ /home/hxw/TLSPlatform/pq-tls-benchmark/emulation-exp/code/setup_ns.sh
++ SERVER_VETH_LL_ADDR=00:00:00:00:00:02
++ SERVER_NS=srv_ns
++ SERVER_VETH=srv_ve
++ CLIENT_NS=cli_ns
++ CLIENT_VETH_LL_ADDR=00:00:00:00:00:01
++ CLIENT_VETH=cli_ve
++ ip netns add srv_ns
++ ip netns add cli_ns
++ ip link add name srv_ve address 00:00:00:00:00:02 netns srv_ns type veth peer name cli_ve address 00:00:00:00:00:01 netns cli_ns
++ ip netns exec srv_ns ip link set dev srv_ve up
++ ip netns exec srv_ns ip link set dev lo up
++ ip netns exec srv_ns ip addr add 10.0.0.1/24 dev srv_ve
++ ip netns exec cli_ns ip addr add 10.0.0.2/24 dev cli_ve
++ ip netns exec cli_ns ip link set dev lo up
++ ip netns exec cli_ns ip link set dev cli_ve up
++ ip netns exec cli_ns ip link set dev lo up
++ ip netns exec srv_ns ip neigh add 10.0.0.2 lladdr 00:00:00:00:00:01 dev srv_ve
++ ip netns exec cli_ns ip neigh add 10.0.0.1 lladdr 00:00:00:00:00:02 dev cli_ve
++ ip netns exec cli_ns ethtool -K cli_ve gso off gro off tso off
++ ip netns exec srv_ns ethtool -K srv_ve gso off gro off tso off
++ ip netns exec cli_ns tc qdisc add dev cli_ve root netem
+Error: Specified qdisc not found.
++ ip netns exec srv_ns tc qdisc add dev srv_ve root netem
+Error: Specified qdisc not found.
+```
+
+
+尝试使用张枫师兄中的环境代码，发现也存在无法设置的问题
+```bash
+hxw@LAPTOP-QFLFNNQO:~/TLSPlatform/Platform$ sudo ip netns exec ns-router tc qdisc add dev veth1-router root netem loss 0% delay "2.5ms"
+Error: Specified qdisc not found.
+```
+
+[似乎在wsl中不支持qdisc](https://learn.microsoft.com/en-us/answers/questions/48142/wsl2-qdisc-netem-support)
+
+# 2024-3-22
+## 解决wsl中对于qdosc的支持问题
+```bash
+hxw@LAPTOP-QFLFNNQO:~$ sudo git clone https://github.com/microsoft/WSL2-Linux-Kernel.git
+Cloning into 'WSL2-Linux-Kernel'...
+remote: Enumerating objects: 10494809, done.
+remote: Total 10494809 (delta 0), reused 0 (delta 0), pack-reused 10494809
+Receiving objects: 100% (10494809/10494809), 2.17 GiB | 10.79 MiB/s, done.
+Resolving deltas: 100% (8874131/8874131), done.
+Updating files: 100% (73699/73699), done.
+hxw@LAPTOP-QFLFNNQO:~$ cd WSL2-Linux-Kernel/
+hxw@LAPTOP-QFLFNNQO:~/WSL2-Linux-Kernel$ cp Microsoft/config-wsl .config
+cp: cannot create regular file '.config': Permission denied
+hxw@LAPTOP-QFLFNNQO:~/WSL2-Linux-Kernel$ sudo cp Microsoft/config-wsl .config
+hxw@LAPTOP-QFLFNNQO:~/WSL2-Linux-Kernel$ make -j $(expr $(nproc) - 1)
+mkdir: cannot create directory ‘.tmp_6786’: Permission denied
+mkdir: cannot create directory ‘.tmp_6788’: Permission denied
+mkdir: cannot create directory ‘.tmp_6790’: Permission denied
+mkdir: cannot create directory ‘.tmp_6792’: Permission denied
+mkdir: cannot create directory ‘.tmp_6794’: Permission denied
+mkdir: cannot create directory ‘.tmp_6796’: Permission denied
+mkdir: cannot create directory ‘.tmp_6798’: Permission denied
+mkdir: cannot create directory ‘.tmp_6800’: Permission denied
+mkdir: cannot create directory ‘.tmp_6802’: Permission denied
+mkdir: cannot create directory ‘.tmp_6804’: Permission denied
+mkdir: cannot create directory ‘.tmp_6806’: Permission denied
+mkdir: cannot create directory ‘.tmp_6808’: Permission denied
+mkdir: cannot create directory ‘.tmp_6810’: Permission denied
+mkdir: cannot create directory ‘.tmp_6812’: Permission denied
+mkdir: cannot create directory ‘.tmp_6814’: Permission denied
+mkdir: cannot create directory ‘.tmp_6816’: Permission denied
+mkdir: cannot create directory ‘.tmp_6818’: Permission denied
+mkdir: cannot create directory ‘.tmp_6821’: Permission denied
+mkdir: cannot create directory ‘.tmp_6823’: Permission denied
+mkdir: cannot create directory ‘.tmp_6825’: Permission denied
+mkdir: cannot create directory ‘.tmp_6827’: Permission denied
+mkdir: cannot create directory ‘.tmp_6829’: Permission denied
+mkdir: cannot create directory ‘.tmp_6831’: Permission denied
+mkdir: cannot create directory ‘.tmp_6833’: Permission denied
+mkdir: cannot create directory ‘.tmp_6835’: Permission denied
+  SYNC    include/config/auto.conf.cmd
+mkdir: cannot create directory ‘.tmp_6861’: Permission denied
+mkdir: cannot create directory ‘.tmp_6863’: Permission denied
+mkdir: cannot create directory ‘.tmp_6865’: Permission denied
+mkdir: cannot create directory ‘.tmp_6867’: Permission denied
+mkdir: cannot create directory ‘.tmp_6869’: Permission denied
+mkdir: cannot create directory ‘.tmp_6871’: Permission denied
+mkdir: cannot create directory ‘.tmp_6873’: Permission denied
+mkdir: cannot create directory ‘.tmp_6875’: Permission denied
+  HOSTCC  scripts/basic/fixdep
+scripts/basic/fixdep.c:373:1: fatal error: opening dependency file scripts/basic/.fixdep.d: Permission denied
+  373 | }
+      | ^
+compilation terminated.
+make[2]: *** [scripts/Makefile.host:95: scripts/basic/fixdep] Error 1
+make[1]: *** [Makefile:563: scripts_basic] Error 2
+make: *** [Makefile:747: include/config/auto.conf.cmd] Error 2
+```
+
+> sudo apt update && sudo apt install build-essential flex bison libssl-dev libelf-dev bc python3 pahole 安装相关的依赖（pahole换成dwarves）
+
+
+sudo apt install build-essential flex bison libssl-dev libelf-dev git dwarves
+git clone https://github.com/microsoft/WSL2-Linux-Kernel.git
+cd WSL2-Linux-Kernel
+cp Microsoft/config-wsl .config
+make -j $(expr $(nproc) - 1)
+
+
+使用下述命令，查看%userprofile%的具体值
+```bash
+C:\Users\Lenovo>echo %userprofile%
+C:\Users\Lenovo
+```
+将~/WSL2-Linux-Kernel/arch/x86/boot下的bzImage粘贴到C:\Users\Lenovo中，并创建文件.wslconfig，文件内容为
+```
+[wsl2]
+kernel=C:\\Users\\Lenovo\\bzImage
+```
+
+![alt text](image-80.png)
+
+重启后，发现还是存在问题
+```bash
+hxw@LAPTOP-QFLFNNQO:/lib/modules$ modprobe ifb
+modprobe: FATAL: Module ifb not found in directory /lib/modules/5.15.150.1-microsoft-standard-WSL2+
+```
+和之前的报错相比，似乎内核的确已经发生了改变
+```bash
+User
+modprobe: FATAL: Module ifb not found in directory /lib/modules/5.10.16.3-microsoft-standard-WSL2
+```
+
+将.wslconfig文件删除，重新启动虚拟机，得到
+```bash
+hxw@LAPTOP-QFLFNNQO:~$ uname -r
+5.10.16.3-microsoft-standard-WSL2
+hxw@LAPTOP-QFLFNNQO:~$ 
+```
+
+添加.wslconfig文件，重新启动，得到
+```bash
+hxw@LAPTOP-QFLFNNQO:~$ uname -r
+5.15.150.1-microsoft-standard-WSL2+
+```
+
+[Building the WSL2 Linux Kernel Yourself](https://blog.sampath.dev/building-the-wsl2-linux-kernel-yourself)
+
+[How to use the Microsoft Linux kernel v6 on Windows Subsystem for Linux version 2 (WSL2)](https://learn.microsoft.com/en-us/community/content/wsl-user-msft-kernel-v6)
+
+[WSL 2 does not have /lib/modules/](https://unix.stackexchange.com/questions/594470/wsl-2-does-not-have-lib-modules)
+
+
+## batch存在的意义是什么
+![alt text](image-79.png)
+
+
+## 虚拟机的安装
+### step1:
+sudo apt install net-tools
+sudo apt-get install build-essential
+
+### step2:
+换源
+'''bash
+# See http://help.ubuntu.com/community/UpgradeNotes for how to upgrade to
+# newer versions of the distribution.
+###deb http://archive.ubuntu.com/ubuntu/ focal main restricted
+# deb-src http://archive.ubuntu.com/ubuntu/ focal main restricted
+
+## Major bug fix updates produced after the final release of the
+## distribution.
+###deb http://archive.ubuntu.com/ubuntu/ focal-updates main restricted
+# deb-src http://archive.ubuntu.com/ubuntu/ focal-updates main restricted
+
+## N.B. software from this repository is ENTIRELY UNSUPPORTED by the Ubuntu
+## team. Also, please note that software in universe WILL NOT receive any
+## review or updates from the Ubuntu security team.
+###deb http://archive.ubuntu.com/ubuntu/ focal universe
+# deb-src http://archive.ubuntu.com/ubuntu/ focal universe
+###deb http://archive.ubuntu.com/ubuntu/ focal-updates universe
+# deb-src http://archive.ubuntu.com/ubuntu/ focal-updates universe
+
+## N.B. software from this repository is ENTIRELY UNSUPPORTED by the Ubuntu
+## team, and may not be under a free licence. Please satisfy yourself as to
+## your rights to use the software. Also, please note that software in
+## multiverse WILL NOT receive any review or updates from the Ubuntu
+## security team.
+###deb http://archive.ubuntu.com/ubuntu/ focal multiverse
+# deb-src http://archive.ubuntu.com/ubuntu/ focal multiverse
+###deb http://archive.ubuntu.com/ubuntu/ focal-updates multiverse
+# deb-src http://archive.ubuntu.com/ubuntu/ focal-updates multiverse
+
+## N.B. software from this repository may not have been tested as
+## extensively as that contained in the main release, although it includes
+## newer versions of some applications which may provide useful features.
+## Also, please note that software in backports WILL NOT receive any review
+## or updates from the Ubuntu security team.
+###deb http://archive.ubuntu.com/ubuntu/ focal-backports main restricted universe multiverse
+# deb-src http://archive.ubuntu.com/ubuntu/ focal-backports main restricted universe multiverse
+
+## Uncomment the following two lines to add software from Canonical's
+## 'partner' repository.
+## This software is not part of Ubuntu, but is offered by Canonical and the
+## respective vendors as a service to Ubuntu users.
+# deb http://archive.canonical.com/ubuntu focal partner
+# deb-src http://archive.canonical.com/ubuntu focal partner
+
+###deb http://security.ubuntu.com/ubuntu/ focal-security main restricted
+# deb-src http://security.ubuntu.com/ubuntu/ focal-security main restricted
+###deb http://security.ubuntu.com/ubuntu/ focal-security universe
+# deb-src http://security.ubuntu.com/ubuntu/ focal-security universe
+###deb http://security.ubuntu.com/ubuntu/ focal-security multiverse
+# deb-src http://security.ubuntu.com/ubuntu/ focal-security multiverse
+
+# 默认注释了源码镜像以提高 apt update 速度，如有需要可自行取消注释
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal main restricted universe multiverse
+# deb-src https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal main restricted universe multiverse
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-updates main restricted universe multiverse
+# deb-src https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-updates main restricted universe multiverse
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-backports main restricted universe multiverse
+# deb-src https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-backports main restricted universe multiverse
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-security main restricted universe multiverse
+# deb-src https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-security main restricted universe multiverse
+```
+
+更新源
+```bash
+sudo apt-get update
+sudo apt-get upgrade
+```
+
+安装相关的依赖
+```bash
+sudo apt install astyle cmake gcc ninja-build libssl-dev python3-pytest python3-pytest-xdist unzip xsltproc doxygen graphviz python3-yaml valgrind git python3-pip
+```
+
+pip install jinja2 tabulate
+
+**现在开始安装nginx服务器**
+```bash
+./configure --prefix=./hxw_nginx  --with-openssl=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/ssl/ --with-cc-opt="-I /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/oqs" --with-ld-opt="-L /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib"  --with-debug --without-http_gzip_module --with-http_ssl_module
+
+sed -i 's/libcrypto.a/libcrypto.a -loqs/g' objs/Makefile;
+
+sed -i 's/EVP_MD_CTX_create/EVP_MD_CTX_new/g; s/EVP_MD_CTX_destroy/EVP_MD_CTX_free/g' src/event/ngx_event_openssl.c;
+
+make
+make install
+```
+
+
+运行setup.sh，发现nginx寻找的默认conf和位log位置发生错误，修改ssetup.sh的最后一行，添加-p参数，增加nginx的工作目录
+```bash
+ip netns exec srv_ns ${NGINX_APP} -p ${NGINX_CONF_DIR}/../
+```
+
+继续运行，发现仍然存在报错
+
+```bash
++ ip netns exec srv_ns /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/sbin/nginx -p /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/../
+nginx: [emerg] the "ssl" parameter requires ngx_http_ssl_module in /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/../conf/nginx.conf:97
+```
+
+>下面是解决办法
+首先修改nginx的文件([解决思路的参考文件](https://www.cnblogs.com/Oejfr/p/14902721.html))
+![alt text](image-81.png)
+
+> 启发:nginx关于现有库的判断,位于auto文件夹下。在./configure的过程中,调用auto的代码，从而形成对应的Makefile文件
+
+./configure --prefix=/home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx  --with-debug --with-http_ssl_module --with-openssl=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local --with-cc-opt="-I /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/oqs" --with-ld-opt="-L /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib"  --without-http_gzip_module
+
+
+继续运行，存在关于engine的报错
+```bash
+src/event/ngx_event_openssl.c:5159:5: error: ‘ENGINE_set_default’ is deprecated: Since OpenSSL 3.0 [-Werror=deprecated-declarations]
+ 5159 |     if (ENGINE_set_default(engine, ENGINE_METHOD_ALL) == 0) {
+      |     ^~
+In file included from src/event/ngx_event_openssl.h:22,
+                 from src/core/ngx_core.h:83,
+                 from src/event/ngx_event_openssl.c:9:
+/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/openssl/engine.h:708:27: note: declared here
+  708 | OSSL_DEPRECATEDIN_3_0 int ENGINE_set_default(ENGINE *e, unsigned int flags);
+      |                           ^~~~~~~~~~~~~~~~~~
+src/event/ngx_event_openssl.c:5164:9: error: ‘ENGINE_free’ is deprecated: Since OpenSSL 3.0 [-Werror=deprecated-declarations]
+ 5164 |         ENGINE_free(engine);
+      |         ^~~~~~~~~~~
+In file included from src/event/ngx_event_openssl.h:22,
+                 from src/core/ngx_core.h:83,
+                 from src/event/ngx_event_openssl.c:9:
+/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/openssl/engine.h:493:27: note: declared here
+  493 | OSSL_DEPRECATEDIN_3_0 int ENGINE_free(ENGINE *e);
+      |                           ^~~~~~~~~~~
+src/event/ngx_event_openssl.c:5169:5: error: ‘ENGINE_free’ is deprecated: Since OpenSSL 3.0 [-Werror=deprecated-declarations]
+ 5169 |     ENGINE_free(engine);
+      |     ^~~~~~~~~~~
+In file included from src/event/ngx_event_openssl.h:22,
+                 from src/core/ngx_core.h:83,
+                 from src/event/ngx_event_openssl.c:9:
+/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/openssl/engine.h:493:27: note: declared here
+  493 | OSSL_DEPRECATEDIN_3_0 int ENGINE_free(ENGINE *e);
+```
+
+加上CFLAGS来使得编译成功以略过该错误
+```bash
+CFLAGS="-Wno-error=deprecated-declarations" ./configure --prefix=/home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx --with-debug --with-http_ssl_module --with-openssl=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local --with-cc-opt="-I /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/oqs" --with-ld-opt="-L /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib" --without-http_gzip_module
+```
+
+
+
+
+然后运行setup.sh成功
+接着运行experiment.py，出现了一些问题
+
+```bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo python3 experiment.py
+ > ip netns exec cli_ns tc qdisc change dev cli_ve root netem limit 1000 delay 2.684ms rate 1000mbit
+ > ip netns exec srv_ns tc qdisc change dev srv_ve root netem limit 1000 delay 2.684ms rate 1000mbit
+ > ip netns exec cli_ns ping 10.0.0.1 -c 30
+ > ip netns exec cli_ns tc qdisc change dev cli_ve root netem limit 1000 delay 2.684ms rate 1000mbit
+ > ip netns exec srv_ns tc qdisc change dev srv_ve root netem limit 1000 delay 2.684ms rate 1000mbit
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/usr/lib/python3.8/multiprocessing/pool.py", line 51, in starmapstar
+    return list(itertools.starmap(args[0], args[1]))
+  File "experiment.py", line 53, in time_handshake
+    result = run_subprocess(command)
+  File "experiment.py", line 21, in run_subprocess
+    assert result.returncode == expected_returncode
+AssertionError
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "experiment.py", line 91, in <module>
+    result = run_timers(kex_alg, timer_pool)
+  File "experiment.py", line 57, in run_timers
+    results_nested = timer_pool.starmap(time_handshake, [(kex_alg, MEASUREMENTS_PER_TIMER)] * TIMERS)
+  File "/usr/lib/python3.8/multiprocessing/pool.py", line 372, in starmap
+    return self._map_async(func, iterable, starmapstar, chunksize).get()
+  File "/usr/lib/python3.8/multiprocessing/pool.py", line 771, in get
+    raise self._value
+AssertionError
+```
+
+下面先查看一下网络的结果
+客户端10.0.0.2
+服务端10.0.0.1
+```bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo ip netns exec cli_ns ping 10.0.0.1
+PING 10.0.0.1 (10.0.0.1) 56(84) bytes of data.
+64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=5.85 ms
+64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=5.66 ms
+^C
+--- 10.0.0.1 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1002ms
+rtt min/avg/max/mdev = 5.656/5.753/5.850/0.097 ms
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo ip netns exec cli_ns ifconfig
+cli_ve: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.0.0.2  netmask 255.255.255.0  broadcast 0.0.0.0
+        inet6 fe80::200:ff:fe00:1  prefixlen 64  scopeid 0x20<link>
+        ether 00:00:00:00:00:01  txqueuelen 1000  (Ethernet)
+        RX packets 44  bytes 4072 (4.0 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 43  bytes 4002 (4.0 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+```
+
+# 2024-3-23/2024-3-24
+## 搭建好测试环境(experiment.py代码的成功运行)
+
+仍然存在无法寻找到库的问题
+```bash
+b'./s_timer.o: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory\n'
+```
+
+下面单独运行s_timer程序，能够成功运行，但是由于缺乏nginx服务器，因此总是报错
+
+于是进一步尝试在ns中运行，验证发现，是由于系统环境变量的问题导致无法找到动态链接库
+
+
+```bash
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# printenv LD_LIBRARY_PATH
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# source /etc/profile
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# printenv LD_LIBRARY_PATH
+/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib64
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# ./s_timer prime256v1  100
+hxw2
+hxw4
+hxw6
+hxw8
+hxw10
+hxw set verify successfully
+16.964455,11.615972,10.173507,5.711372,4.458571,4.623199,4.071431,3.901915,4.619473,5.089827,4.455314,3.669486,4.114288,3.665743,4.232525,3.777349,4.492146,5.097235,4.320964,7.674708,5.518913,4.107031,4.585853,4.019995,4.486076,4.561549,4.742279,4.052172,3.960240,4.563042,3.718556,4.260010,4.217083,4.902488,4.269329,4.743770,4.209305,3.759973,4.437464,4.364208,3.964576,4.220476,5.161196,4.700610,4.410105,4.129299,3.677799,3.113653,4.018252,4.665156,4.769332,4.359742,4.324971,3.890337,4.225572,4.492203,4.334081,4.520263,4.357518,5.119997,4.147201,3.749079,4.174109,4.210048,4.538015,3.870424,4.145983,4.322038,4.020862,4.643584,3.905181,3.889914,4.279939,4.499164,3.969831,4.155113,3.526474,4.238674,4.446052,4.284474,4.269660,4.139799,3.894906,4.133550,3.598712,4.209333,3.622714,4.864462,3.865526,4.273275,5.175800,4.185426,4.235865,4.140313,4.579465,4.787473,4.706640,4.562890,4.229961,4.397829
+```
+
+经过实验发现，可以使用下述命令来完成
+```bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo ip netns exec cli_ns bash -c "export LD_LIBRARY_PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib64 ; ./s_timer prime256v1  100"
+[sudo] password for hxw: 
+hxw2
+hxw4
+hxw6
+hxw8
+hxw10
+hxw set verify successfully
+10.429356,8.305806,9.346091,8.773166,6.689679,8.838787,8.210003,7.634086,5.506995,4.543336,5.217416,8.169378,6.420159,5.649527,5.276964,5.207556,8.261495,6.820820,5.245164,3.810615,4.057196,6.436939,4.247833,4.554230,3.854200,3.495709,4.088955,4.267588,4.984942,4.497852,4.582193,4.890603,3.677964,4.529757,4.353454,5.237123,4.629254,4.089084,4.280036,3.855195,4.661856,4.730130,7.233123,6.592527,4.750197,4.418298,4.252988,5.355094,4.602718,4.517200,4.239568,4.440609,4.055054,3.797894,4.376852,3.617284,4.427737,4.881788,4.411835,5.075765,4.725168,4.558560,4.595090,4.280279,4.616857,4.658819,5.276425,4.381776,4.361608,4.451188,4.149146,4.976509,4.380106,4.543265,4.049558,6.336054,4.447290,4.365162,3.303404,4.421554,4.927753,4.376067,5.065393,4.352546,4.398853,4.833836,4.350335,6.281635,6.755814,6.191418,7.094626,5.671492,5.816716,6.914305,6.363570,6.938478,5.722543,6.265128,6.205933,6.225770
+```
+
+因此，修改experiment.py函数如下所示
+```python
+def time_handshake(kex_alg, measurements):
+    command = [
+    'sudo','ip', 'netns', 'exec', 'cli_ns', 'bash', '-c',
+    'export LD_LIBRARY_PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib64 ; ' +
+    './s_timer.o ' + kex_alg + ' ' + str(measurements)
+]
+    result = run_subprocess(command)
+    print(result)
+    return [float(i) for i in result.strip().split(',')]
+```
+但是出现报错，是因为输出的内容包含一些hxw等调试信息或者不输出，通过删除这些调试输出从而解决这些问题
+
+> 是用.o还是可执行文件呢 -> 使用可执行文件
+
+
+
+### s_timer代码解读
+s_timer应该是输出的是建立握手的时间
+
+TODO:如何修改代码以指定ctruprime呢?
+**注意:**当服务端不指定kex算法，而客户端指定时，此时也会出现40错误。
+1.在s_timer代码中，使之调用ctruprime653
+
+
+2.nginx服务端，如何指定ctruprime653
+[nginx服务端配置](https://www.runoob.com/w3cnote/nginx-setup-intro.html)
+
+首先根据gpt的提示，在nginx.conf文件中添加"ssl_key_exchange_algorithm ctruprime653;"，，但是报错nginx无法识别ssl_key_exchange_algorithm
+```bash
+    server {
+        listen       10.0.0.1:4433 ssl;
+        server_name  localhost;
+
+        ssl_certificate      server.crt;
+        ssl_certificate_key  server.key;
+
+        ssl_session_cache    shared:SSL:1m;
+        ssl_session_timeout  5m;
+
+        ssl_protocols TLSv1.3;
+        ssl_key_exchange_algorithm ctruprime653;
+        client_header_timeout 67234s;
+
+        location / {
+            root   html;
+            index  index.html index.htm;
+        }
+    }
+```
+
+于是尝试修改openssl.conf来修改
+
+在修改experiment.py中的kex算法为ctruprime653后，出现如下所示的报错
+```bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo python3 experiment.py 
+ > ip netns exec cli_ns tc qdisc change dev cli_ve root netem limit 1000 delay 2.684ms rate 1000mbit
+ > ip netns exec srv_ns tc qdisc change dev srv_ve root netem limit 1000 delay 2.684ms rate 1000mbit
+ > ip netns exec cli_ns ping 10.0.0.1 -c 30
+ > ip netns exec cli_ns tc qdisc change dev cli_ve root netem limit 1000 delay 2.684ms rate 1000mbit
+ > ip netns exec srv_ns tc qdisc change dev srv_ve root netem limit 1000 delay 2.684ms rate 1000mbit
+before run timers
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+b'Unrecoverable OpenSSL error.\n'
+
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/usr/lib/python3.8/multiprocessing/pool.py", line 51, in starmapstar
+    return list(itertools.starmap(args[0], args[1]))
+  File "experiment.py", line 58, in time_handshake
+    return [float(i) for i in result.strip().split(',')]
+  File "experiment.py", line 58, in <listcomp>
+    return [float(i) for i in result.strip().split(',')]
+ValueError: could not convert string to float: ''
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "experiment.py", line 97, in <module>
+    result = run_timers(kex_alg, timer_pool)
+  File "experiment.py", line 62, in run_timers
+    results_nested = timer_pool.starmap(time_handshake, [(kex_alg, MEASUREMENTS_PER_TIMER)] * TIMERS)
+  File "/usr/lib/python3.8/multiprocessing/pool.py", line 372, in starmap
+    return self._map_async(func, iterable, starmapstar, chunksize).get()
+  File "/usr/lib/python3.8/multiprocessing/pool.py", line 771, in get
+    raise self._value
+ValueError: could not convert string to float: ''
+```
+
+```bash
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/certs# openssl s_client -groups ctruprime653 -connect 10.1.2.2:4433
+Connecting to 10.1.2.2
+CONNECTED(00000003)
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+8064E308137F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:907:SSL alert number 40
+---
+no peer certificate available
+---
+No client certificate CA names sent
+---
+SSL handshake has read 7 bytes and written 1281 bytes
+Verification: OK
+---
+New, (NONE), Cipher is (NONE)
+This TLS version forbids renegotiation.
+Compression: NONE
+Expansion: NONE
+No ALPN negotiated
+Early data was not sent
+Verify return code: 0 (ok)
+---
+```
+
+在s_timer.c中，添加输出，定位错误是由于SSL_CTX_set1_groups_list(ssl_ctx, kex_alg)引起的
+使用代码set_group_test进行测试
+```bash
+#include <stdio.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
+int main(void) {
+    SSL_CTX* ssl_ctx = SSL_CTX_new(SSLv23_client_method()); // 创建 SSL_CTX 对象
+    if (!ssl_ctx) {
+        printf("Failed to create SSL_CTX\n");
+        return 1;
+    }
+
+    printf("hi\n");
+    int ret = SSL_CTX_set1_groups_list(ssl_ctx, "ctruprime653");
+    if (ret != 1) {
+        printf("set kex_alg wrong\n");
+    } else {
+        printf("set ctruprime653 kex_alg success\n");
+    }
+
+    SSL_CTX_free(ssl_ctx); // 释放 SSL_CTX 对象
+    return 0;
+}
+
+
+```
+
+![alt text](image-82.png)
+
+![alt text](image-83.png)
+
+在命名空间中运行set_group_test,当没有/etc/profile的时候，失败。
+于是调整，experiment.py文件中的运行s_timer的命令为 "source /etc/profile ; ./s_timer ctruprime653 100"
+能够正确运行，此时报错
+```bash
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# ./s_timer ctruprime653 1
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+8034D7B0B87F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:907:SSL alert number 40
+[In kem.c] Try to new ctruprime653
+
+```
+
+根据以前的报错，猜测40错误出现的原因在于签名算法的使用错误
+![alt text](image-84.png)
+
+重新生成dilithium3密钥,在命令行界面是成功的
+![alt text](image-85.png)
+
+> 这是因为新的bash中，环境变量没有更新导致的，因此在setup.sh文件中，添加如下的内容
+
+```bash
+export OPENSSL_PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/bin
+export PATH=$OPENSSL_PATH:$PATH
+export LD_LIBRARY_PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib64
+export OPENSSL_APP=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/openssl/apps/openssl
+export OPENSSL_CONF=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/scripts/openssl-ca.cnf
+export OPENSSL_MODULES=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/_build/lib
+export C_INCLUDE_PATH=$C_INCLUDE_PATH:/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include
+
+export OPENSSLDIR=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/ssl
+```
+
+在nginx配置文件中，指定了服务端的证书路径，因此在setup的过程中，需要和nginx.conf中的保持一致
+
+```bash
+${OPENSSL} req -x509 -new -newkey dilithium3 -keyout ${NGINX_CONF_DIR}/CA.key -out ${NGINX_CONF_DIR}/CA.crt -nodes -subj "/CN=OQS test dilithium3 CA" -days 365 -config ${OPENSSL_CNF}
+
+echo "1"
+
+
+# generate server CSR
+# ${OPENSSL} req -new -newkey ec:prime256v1.pem -keyout ${NGINX_CONF_DIR}/server.key -out ${NGINX_CONF_DIR}/server.csr -nodes -subj "/CN=oqstest CA ecdsap256" -config ${OPENSSL_CNF}
+${OPENSSL} genpkey -algorithm dilithium3 -out ${NGINX_CONF_DIR}/server.key
+${OPENSSL} req -new -newkey dilithium3 -keyout ${NGINX_CONF_DIR}/server.key -out ${NGINX_CONF_DIR}/server.csr -nodes -subj "/CN=OQS test server" -config ${OPENSSL_CNF}
+
+
+echo "2"
+# generate server cert
+${OPENSSL} x509 -req -in ${NGINX_CONF_DIR}/server.csr -out ${NGINX_CONF_DIR}/server.crt -CA ${NGINX_CONF_DIR}/CA.crt -CAkey ${NGINX_CONF_DIR}/CA.key -CAcreateserial -days 365
+```
+
+此时，仍然没有解决40报错的问题，猜测是nginx端和客户端差不多由于环境变量的原因产生错误，于是加入了如下的命令
+```bash
+sudo ip netns exec srv_ns bash -c "source /etc/profile;${NGINX_APP} 
+```
+但是仍然没有解决
+
+```
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo ip netns exec cli_ns bash
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# source /etc/profile
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# openssl version
+OpenSSL 3.3.0-dev  (Library: OpenSSL 3.3.0-dev )
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# ./s_timer ctruprime653 10
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+8084ADCC287F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:907:SSL alert number 40
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+8084ADCC287F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:907:SSL alert number 40
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+```
+
+> 现在只能在本机配好，然后客户端连接抓包看一下发生了什么
+
+修改s_timer连接的客户端地址为本地回环
+然后运行，产生如下所示的报错
+```bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/sbin/nginx
+nginx: [emerg] SSL_CTX_use_certificate("/home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/server.crt") failed (SSL: error:03000072:digital envelope routines::decode error error:0A00018F:SSL routines::ee key too small)
+```
+还是证书有问题!!!
+
+```bash
+${OPENSSL} req -x509 -new -newkey dilithium3 -keyout ${NGINX_CONF_DIR}/CA.key -out ${NGINX_CONF_DIR}/CA.crt -nodes -subj "/CN=OQS test dilithium3 CA" -days 365 -config ${OPENSSL_CNF}
+
+echo "1"
+
+
+# generate server CSR
+# ${OPENSSL} req -new -newkey ec:prime256v1.pem -keyout ${NGINX_CONF_DIR}/server.key -out ${NGINX_CONF_DIR}/server.csr -nodes -subj "/CN=oqstest CA ecdsap256" -config ${OPENSSL_CNF}
+${OPENSSL} genpkey -algorithm dilithium3 -out ${NGINX_CONF_DIR}/server.key
+${OPENSSL} req -new -newkey dilithium3 -keyout ${NGINX_CONF_DIR}/server.key -out ${NGINX_CONF_DIR}/server.csr -nodes -subj "/CN=OQS test server" -config ${OPENSSL_CNF}
+
+
+echo "2"
+# generate server cert
+${OPENSSL} x509 -req -in ${NGINX_CONF_DIR}/server.csr -out ${NGINX_CONF_DIR}/server.crt -CA ${NGINX_CONF_DIR}/CA.crt -CAkey ${NGINX_CONF_DIR}/CA.key -CAcreateserial -days 365
+
+echo "3"
+```
+
+加了新的还是没解决/(ㄒoㄒ)/~~
+
+(2024-3-24)
+当继续使用原来的证书,发现服务器端能够正确启动
+
+```bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/sbin/nginx
+nginx: [emerg] bind() to 10.0.0.1:4433 failed (99: Cannot assign requested address)
+```
+
+可能存在的原因
+1.证书的问题->可能性不大，因为使用原先的证书是能够在主机中成功运行nginx服务器的
+
+根据gpt的提示再运行一遍
+```bash
+${OPENSSL} req -x509 -new -newkey dilithium3 -keyout ${NGINX_CONF_DIR}/CA.key -out ${NGINX_CONF_DIR}/CA.crt -nodes -subj "/CN=OQS test dilithium3 CA" -days 365 -config ${OPENSSL_CNF}
+
+${OPENSSL} req -new -newkey dilithium3 -keyout ${NGINX_CONF_DIR}/server.key -out ${NGINX_CONF_DIR}/server.csr -nodes -subj "/CN=OQS test server" -config ${OPENSSL_CNF}
+
+${OPENSSL} x509 -req -in ${NGINX_CONF_DIR}/server.csr -out ${NGINX_CONF_DIR}/server.crt -CA ${NGINX_CONF_DIR}/CA.crt -CAkey ${NGINX_CONF_DIR}/CA.key -CAcreateserial -days 365
+```
+但是仍然存在如下所示的报错
+```bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/sbin/nginx
+nginx: [emerg] SSL_CTX_use_certificate("/home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/server.crt") failed (SSL: error:03000072:digital envelope routines::decode error error:0A00018F:SSL routines::ee key too small)
+```
+2.服务端kex算法未指定的问题
+
+似乎，找不到对应的算法
+
+解决思路:
+1.抓包看一下
+2.
+## batch的集成
+
+# 2024-3-25
+能够从成功运行set_group_test(里面集成的是kyber768)
+
+下面运行含kuber768的experiment.py
+没有东西输出，需要看一下
+
+在本地又开始报错找不到libssl库
+![alt text](image-86.png)
+
+想看具体的输出是什么
+在命名空间中找不到
+
+![alt text](image-87.png)
+
+在experiment中修改使输出运行命令的结果失效
+
+> 总结:遇到的几个问题:1.libssl找不到 2.连上了存在40错误(是算法没有集成还是证书的错误,是set_group_test的问题还是证书的40问题，证书的问题会导致服务器无法启动) 3.输出不显示 4.
+
+运行setup
+本地开启服务器，没问题
+
+>openssl req -x509 -new -newkey dilithium3 -keyout /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/dilithium3_CA.key -out /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/dilithium3_CA.crt -nodes -subj '/CN=OQS test dilithium3 CA' -days 365 -config /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/scripts/openssl-ca.cnf
+cc -g -Wall -Wextra -Werror -Wpedantic -I/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/openssl -I/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/oqs s_timer.c -L/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib64  -lssl -lcrypto -ldl -lpthread -loqs -o s_timer_local
+cc -g -Wall -Wextra -Werror -Wpedantic -I/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/openssl -I/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/oqs set_group_test.c -L/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib64  -lssl -lcrypto -ldl -lpthread -loqs -o set_group_test
+
+我cnm，现在又可以了
+```bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo ./setup.sh 
++++ pwd
+++ dirname /home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex
++ ROOT=/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code
++ OPENSSL=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/bin/openssl
++ OPENSSL_CNF=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/scripts/openssl-ca.cnf
++ NGINX_APP=/home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/sbin/nginx
++ NGINX_CONF_DIR=/home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf
++ export OPENSSL_PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/bin
++ OPENSSL_PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/bin
++ export PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
++ PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
++ export LD_LIBRARY_PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib64
++ LD_LIBRARY_PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib64
++ export OPENSSL_APP=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/openssl/apps/openssl
++ OPENSSL_APP=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/openssl/apps/openssl
++ export OPENSSL_CONF=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/scripts/openssl-ca.cnf
++ OPENSSL_CONF=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/scripts/openssl-ca.cnf
++ export OPENSSL_MODULES=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/_build/lib
++ OPENSSL_MODULES=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/_build/lib
++ export C_INCLUDE_PATH=:/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include
++ C_INCLUDE_PATH=:/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include
++ export OPENSSLDIR=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/ssl
++ OPENSSLDIR=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/ssl
++ make s_timer
+cc -g -Wall -Wextra -Werror -Wpedantic -I/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/openssl -I/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/oqs s_timer.c -L/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib64  -lssl -lcrypto -ldl -lpthread -loqs -o s_timer
++ /home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/setup_ns.sh
++ SERVER_VETH_LL_ADDR=00:00:00:00:00:02
++ SERVER_NS=srv_ns
++ SERVER_VETH=srv_ve
++ CLIENT_NS=cli_ns
++ CLIENT_VETH_LL_ADDR=00:00:00:00:00:01
++ CLIENT_VETH=cli_ve
++ ip netns add srv_ns
++ ip netns add cli_ns
++ ip link add name srv_ve address 00:00:00:00:00:02 netns srv_ns type veth peer name cli_ve address 00:00:00:00:00:01 netns cli_ns
++ ip netns exec srv_ns ip link set dev srv_ve up
++ ip netns exec srv_ns ip link set dev lo up
++ ip netns exec srv_ns ip addr add 10.0.0.1/24 dev srv_ve
++ ip netns exec cli_ns ip addr add 10.0.0.2/24 dev cli_ve
++ ip netns exec cli_ns ip link set dev lo up
++ ip netns exec cli_ns ip link set dev cli_ve up
++ ip netns exec cli_ns ip link set dev lo up
++ ip netns exec srv_ns ip neigh add 10.0.0.2 lladdr 00:00:00:00:00:01 dev srv_ve
++ ip netns exec cli_ns ip neigh add 10.0.0.1 lladdr 00:00:00:00:00:02 dev cli_ve
++ ip netns exec cli_ns ethtool -K cli_ve gso off gro off tso off
+exec of "ethtool" failed: No such file or directory
++ ip netns exec srv_ns ethtool -K srv_ve gso off gro off tso off
+exec of "ethtool" failed: No such file or directory
++ ip netns exec cli_ns tc qdisc add dev cli_ve root netem
++ ip netns exec srv_ns tc qdisc add dev srv_ve root netem
++ /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/bin/openssl ecparam -out prime256v1.pem -name prime256v1
++ /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/bin/openssl req -x509 -new -newkey ec:prime256v1.pem -keyout /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/CA.key -out /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/CA.crt -nodes -subj '/CN=OQS test ecdsap256 CA' -days 365 -config /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/scripts/openssl-ca.cnf
+-----
++ /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/bin/openssl req -new -newkey ec:prime256v1.pem -keyout /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/server.key -out /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/server.csr -nodes -subj '/CN=oqstest CA ecdsap256' -config /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/scripts/openssl-ca.cnf
+-----
++ /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/bin/openssl x509 -req -in /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/server.csr -out /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/server.crt -CA /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/CA.crt -CAkey /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/CA.key -CAcreateserial -days 365
+Certificate request self-signature ok
+subject=CN=oqstest CA ecdsap256
++ cp nginx.conf /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/conf/nginx.conf
++ sudo ip netns exec srv_ns bash -c 'source /etc/profile;/home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/sbin/nginx '
++ chmod 777 s_timer
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo ip netns exec cli_ns bash
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# source /etc/profile
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# ./s_timer prime256v1  100
+hxw set kex_alg success
+24.742655,8.909104,4.993471,3.881720,6.285394,4.289006,6.621664,5.853383,5.662293,4.258815,4.805315,4.243928,4.787628,4.083550,3.244132,4.126683,4.669062,3.920091,2.487638,4.128054,4.614163,4.024467,2.537173,3.968418,4.419302,4.457523,3.982722,3.924149,4.242034,3.827129,4.673007,4.833593,3.860085,5.370954,2.174344,5.048302,4.007553,4.551423,4.044153,4.743337,4.479258,3.814667,4.565107,3.741841,4.288349,4.498047,4.155943,4.533891,4.095294,3.646667,4.513444,4.206049,4.125937,5.122688,4.766504,4.344489,4.320140,6.371913,4.925507,4.396034,4.749990,4.126271,4.634278,5.330654,4.629749,4.352904,3.757065,8.278117,6.837824,4.714168,3.565295,3.886913,4.488913,4.005135,4.510854,4.556717,4.782536,4.278440,4.296862,4.143982,3.967841,3.935106,4.252933,4.002932,4.274603,4.270021,4.680200,3.869335,4.373905,4.127022,4.675907,3.925412,4root@ubuntu:/home/hxw/Desktop/root@ubuntu:/home/hxroot@ubuntu:/home/hxw/Desktop/root@ubuntu:/home/hxroot@ubuntroot@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# 
+
+```
+
+下面运行kyber768
+```bash
+root@ubuntu:/home/hxw/Desktop/root@ubuntu:/home/hxroot@ubuntroot@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# ./s_timer kyber768  100
+hxw set kex_alg success
+8054914A367F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:907:SSL alert number 40
+8054914A367F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:907:SSL alert number 40
+8054914A367F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:907:SSL alert number 40
+8054914A367F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:907:SSL alert number 40
+
+```
+
+```bash
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# ./s_timer ctruprime653  100
+hxw set kex_alg success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+803435CB687F0000:error:0A000410:SSL routines:ssl3_read_bytes:ssl/tls alert handshake failure:ssl/record/rec_layer_s3.c:907:SSL alert number 40
+```
+
+**血的教训**:引起找不到问题似乎是因为sudo引起的
+```bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ ./s_timer kyber768 10
+hxw set kex_alg success
+8064A39CC77F0000:error:8000006F:system library:BIO_connect:Connection refused:crypto/bio/bio_sock2.c:178:calling connect()
+8064A39CC77F0000:error:10000067:BIO routines:BIO_connect:connect error:crypto/bio/bio_sock2.c:180:
+8064A39CC77F0000:error:8000006F:system library:conn_state:Connection refused:crypto/bio/bss_conn.c:211:calling connect(10.0.0.1, 4433)
+8064A39CC77F0000:error:10000067:BIO routines:conn_state:connect error:crypto/bio/bss_conn.c:264:
+8064A39CC77F0000:error:8000006F:system library:BIO_connect:Connection refused:crypto/bio/bio_sock2.c:178:calling connect()
+8064A39CC77F0000:error:10000067:BIO routines:BIO_connect:connect error:crypto/bio/bio_sock2.c:180:
+8064A39CC77F0000:error:8000006F:system library:conn_state:Connection refused:crypto/bio/bss_conn.c:211:calling connect(10.0.0.1, 4433)
+8064A39CC77F0000:error:10000067:BIO routines:conn_state:connect error:crypto/bio/bss_conn.c:264:
+^C
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo ./s_timer kyber768 10
+./s_timer: error while loading shared libraries: libssl.so.3: cannot open shared object file: No such file or directory
+```
+
+现在需要定位问题出在s_timer的哪一个函数上面
+
+![alt text](image-89.png)
+
+通过实验发现，错误发生在SSL_connect(ssl)上
+
+在不改变任何配置的情况下，在客户端指定prime256v1时，能够成功建立连接，这意味着，不是网络和服务端证书的问题，而是服务端不支持客户端提供的密钥交换算法
+
+下面进一步确认nginx所使用的openssl的版本,可以看到,nginx是已经成功编译的
+
+```bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ /home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx/sbin/nginx -V
+nginx version: nginx/1.17.5
+built with OpenSSL 3.3.0-dev 
+TLS SNI support enabled
+configure arguments: --prefix=/home/hxw/Desktop/TLS-hxw/benchmark-platform/nginx-1.17.5/hxw_nginx --with-debug --with-http_ssl_module --with-openssl=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local --with-cc-opt='-I /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/include/oqs' --with-ld-opt='-L /home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/lib' --without-http_gzip_module
+```
+
+当尝试使用openssl 自带的s_server和s_client进行操作时，发现当只有客户端指定kem算法，而服务端不进行指定时，也会存在40错误
+
+openssl.cnf备份
+```
+#
+# OpenSSL example configuration file.
+# See doc/man5/config.pod for more info.
+#
+# This is mostly being used for generation of certificate requests,
+# but may be used for auto loading of providers
+
+# Note that you can include other files from the main configuration
+# file using the .include directive.
+#.include filename
+
+# This definition stops the following lines choking if HOME isn't
+# defined.
+HOME                    = .
+
+# Use this in order to automatically load providers.
+openssl_conf = openssl_init
+
+# Comment out the next line to ignore configuration errors
+config_diagnostics = 1
+
+# Extra OBJECT IDENTIFIER info:
+# oid_file       = $ENV::HOME/.oid
+oid_section = new_oids
+
+# To use this configuration file with the "-extfile" option of the
+# "openssl x509" utility, name here the section containing the
+# X.509v3 extensions to use:
+# extensions            =
+# (Alternatively, use a configuration file that has only
+# X.509v3 extensions in its main [= default] section.)
+
+[ new_oids ]
+# We can add new OIDs in here for use by 'ca', 'req' and 'ts'.
+# Add a simple OID like this:
+# testoid1=1.2.3.4
+# Or use config file substitution like this:
+# testoid2=${testoid1}.5.6
+
+# Policies used by the TSA examples.
+tsa_policy1 = 1.2.3.4.1
+tsa_policy2 = 1.2.3.4.5.6
+tsa_policy3 = 1.2.3.4.5.7
+
+# For FIPS
+# Optionally include a file that is generated by the OpenSSL fipsinstall
+# application. This file contains configuration data required by the OpenSSL
+# fips provider. It contains a named section e.g. [fips_sect] which is
+# referenced from the [provider_sect] below.
+# Refer to the OpenSSL security policy for more information.
+# .include fipsmodule.cnf
+
+[openssl_init]
+providers = provider_sect
+ssl_conf = ssl_sect
+
+# List of providers to load
+[provider_sect]
+default = default_sect
+oqsprovider = oqsprovider_sect
+#oqsprovider2 = oqsprovider2_sect
+
+# The fips section name should match the section name inside the
+# included fipsmodule.cnf.
+# fips = fips_sect
+
+# If no providers are activated explicitly, the default one is activated implicitly.
+# See man 7 OSSL_PROVIDER-default for more details.
+#
+# If you add a section explicitly activating any other provider(s), you most
+# probably need to explicitly activate the default provider, otherwise it
+# becomes unavailable in openssl.  As a consequence applications depending on
+# OpenSSL may not work correctly which could lead to significant system
+# problems including inability to remotely access the system.
+[default_sect]
+activate = 1
+
+[oqsprovider_sect]
+activate = 1
+# This second provider instance can be activated (for testing) for example
+# by creating a softlink with suitable name "oqsprovider2" to the originally
+# created oqsprovider.{so|dylib|dll}
+# 3-25 remove oqsprovider2_sect
+#[oqsprovider2_sect]
+#activate = 1
+
+# activate = 1
+
+[ssl_sect]
+system_default = system_default_sect
+
+[system_default_sect]
+Groups = kyber768:kyber1024
+
+####################################################################
+[ ca ]
+default_ca      = CA_default            # The default ca section
+
+####################################################################
+[ CA_default ]
+
+dir             = ./demoCA              # Where everything is kept
+certs           = $dir/certs            # Where the issued certs are kept
+crl_dir         = $dir/crl              # Where the issued crl are kept
+database        = $dir/index.txt        # database index file.
+#unique_subject = no                    # Set to 'no' to allow creation of
+                                        # several certs with same subject.
+new_certs_dir   = $dir/newcerts         # default place for new certs.
+
+certificate     = $dir/cacert.pem       # The CA certificate
+serial          = $dir/serial           # The current serial number
+rand_serial     = no
+crlnumber       = $dir/crlnumber        # the current crl number
+                                        # must be commented out to leave a V1 CRL
+crl             = $dir/crl.pem          # The current CRL
+private_key     = $dir/private/cakey.pem # The private key
+
+x509_extensions = usr_cert              # The extensions to add to the cert
+
+# Comment out the following two lines for the "traditional"
+# (and highly broken) format.
+name_opt        = ca_default            # Subject Name options
+cert_opt        = ca_default            # Certificate field options
+
+# Extension copying option: use with caution.
+# copy_extensions = copy
+
+# Extensions to add to a CRL. Note: Netscape communicator chokes on V2 CRLs
+# so this is commented out by default to leave a V1 CRL.
+# crlnumber must also be commented out to leave a V1 CRL.
+# crl_extensions        = crl_ext
+
+default_days    = 365                   # how long to certify for
+default_crl_days= 30                    # how long before next CRL
+default_md      = sha256                # use public key default MD
+preserve        = no                    # keep passed DN ordering
+email_in_dn     = no
+# A few difference way of specifying how similar the request should look
+# For type CA, the listed attributes must be the same, and the optional
+# and supplied fields are just that :-)
+policy          = policy_match
+
+# For the CA policy
+[ policy_match ]
+countryName             = match
+stateOrProvinceName     = match
+organizationName        = match
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
+
+# For the 'anything' policy
+# At this point in time, you must list all acceptable 'object'
+# types.
+[ policy_anything ]
+countryName             = optional
+stateOrProvinceName     = optional
+localityName            = optional
+organizationName        = optional
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
+
+####################################################################
+[ req ]
+default_bits            = 2048
+default_keyfile         = privkey.pem
+distinguished_name      = req_distinguished_name
+attributes              = req_attributes
+x509_extensions = v3_ca # The extensions to add to the self signed cert
+
+# Passwords for private keys if not present they will be prompted for
+# input_password = secret
+# output_password = secret
+
+# This sets a mask for permitted string types. There are several options.
+# default: PrintableString, T61String, BMPString.
+# pkix   : PrintableString, BMPString (PKIX recommendation before 2004)
+# utf8only: only UTF8Strings (PKIX recommendation after 2004).
+# nombstr : PrintableString, T61String (no BMPStrings or UTF8Strings).
+# MASK:XXXX a literal mask value.
+# WARNING: ancient versions of Netscape crash on BMPStrings or UTF8Strings.
+string_mask = utf8only
+
+# req_extensions = v3_req # The extensions to add to a certificate request
+
+[ req_distinguished_name ]
+countryName                     = Country Name (2 letter code)
+countryName_default             = AU
+countryName_min                 = 2
+countryName_max                 = 2
+
+stateOrProvinceName             = State or Province Name (full name)
+stateOrProvinceName_default     = Some-State
+
+localityName                    = Locality Name (eg, city)
+
+0.organizationName              = Organization Name (eg, company)
+0.organizationName_default      = Internet Widgits Pty Ltd
+
+# we can do this but it is not needed normally :-)
+#1.organizationName             = Second Organization Name (eg, company)
+#1.organizationName_default     = World Wide Web Pty Ltd
+
+organizationalUnitName          = Organizational Unit Name (eg, section)
+#organizationalUnitName_default =
+
+commonName                      = Common Name (e.g. server FQDN or YOUR name)
+commonName_max                  = 64
+
+emailAddress                    = Email Address
+emailAddress_max                = 64
+
+# SET-ex3                       = SET extension number 3
+
+[ req_attributes ]
+challengePassword               = A challenge password
+challengePassword_min           = 4
+challengePassword_max           = 20
+
+unstructuredName                = An optional company name
+
+[ usr_cert ]
+
+# These extensions are added when 'ca' signs a request.
+
+# This goes against PKIX guidelines but some CAs do it and some software
+# requires this to avoid interpreting an end user certificate as a CA.
+
+basicConstraints=CA:FALSE
+
+# This is typical in keyUsage for a client certificate.
+# keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+
+# PKIX recommendations harmless if included in all certificates.
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+
+# This stuff is for subjectAltName and issuerAltname.
+# Import the email address.
+# subjectAltName=email:copy
+# An alternative to produce certificates that aren't
+# deprecated according to PKIX.
+# subjectAltName=email:move
+
+# Copy subject details
+# issuerAltName=issuer:copy
+
+# This is required for TSA certificates.
+# extendedKeyUsage = critical,timeStamping
+
+[ v3_req ]
+
+# Extensions to add to a certificate request
+
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+
+[ v3_ca ]
+
+
+# Extensions for a typical CA
+
+
+# PKIX recommendation.
+
+subjectKeyIdentifier=hash
+
+authorityKeyIdentifier=keyid:always,issuer
+
+basicConstraints = critical,CA:true
+
+# Key usage: this is typical for a CA certificate. However since it will
+# prevent it being used as an test self-signed certificate it is best
+# left out by default.
+# keyUsage = cRLSign, keyCertSign
+
+# Include email address in subject alt name: another PKIX recommendation
+# subjectAltName=email:copy
+# Copy issuer details
+# issuerAltName=issuer:copy
+
+# DER hex encoding of an extension: beware experts only!
+# obj=DER:02:03
+# Where 'obj' is a standard or added object
+# You can even override a supported extension:
+# basicConstraints= critical, DER:30:03:01:01:FF
+
+[ crl_ext ]
+
+# CRL extensions.
+# Only issuerAltName and authorityKeyIdentifier make any sense in a CRL.
+
+# issuerAltName=issuer:copy
+authorityKeyIdentifier=keyid:always
+
+[ proxy_cert_ext ]
+# These extensions should be added when creating a proxy certificate
+
+# This goes against PKIX guidelines but some CAs do it and some software
+# requires this to avoid interpreting an end user certificate as a CA.
+
+basicConstraints=CA:FALSE
+
+# This is typical in keyUsage for a client certificate.
+# keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+
+# PKIX recommendations harmless if included in all certificates.
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+
+# This stuff is for subjectAltName and issuerAltname.
+# Import the email address.
+# subjectAltName=email:copy
+# An alternative to produce certificates that aren't
+# deprecated according to PKIX.
+# subjectAltName=email:move
+
+# Copy subject details
+# issuerAltName=issuer:copy
+
+# This really needs to be in place for it to be a proxy certificate.
+proxyCertInfo=critical,language:id-ppl-anyLanguage,pathlen:3,policy:foo
+
+####################################################################
+[ tsa ]
+
+default_tsa = tsa_config1       # the default TSA section
+
+[ tsa_config1 ]
+
+# These are used by the TSA reply generation only.
+dir             = ./demoCA              # TSA root directory
+serial          = $dir/tsaserial        # The current serial number (mandatory)
+crypto_device   = builtin               # OpenSSL engine to use for signing
+signer_cert     = $dir/tsacert.pem      # The TSA signing certificate
+                                        # (optional)
+certs           = $dir/cacert.pem       # Certificate chain to include in reply
+                                        # (optional)
+signer_key      = $dir/private/tsakey.pem # The TSA private key (optional)
+signer_digest  = sha256                 # Signing digest to use. (Optional)
+default_policy  = tsa_policy1           # Policy if request did not specify it
+                                        # (optional)
+other_policies  = tsa_policy2, tsa_policy3      # acceptable policies (optional)
+digests     = sha1, sha256, sha384, sha512  # Acceptable message digests (mandatory)
+accuracy        = secs:1, millisecs:500, microsecs:100  # (optional)
+clock_precision_digits  = 0     # number of digits after dot. (optional)
+ordering                = yes   # Is ordering defined for timestamps?
+                                # (optional, default: no)
+tsa_name                = yes   # Must the TSA name be included in the reply?
+                                # (optional, default: no)
+ess_cert_id_chain       = no    # Must the ESS cert id chain be included?
+                                # (optional, default: no)
+ess_cert_id_alg         = sha1  # algorithm to compute certificate
+                                # identifier (optional, default: sha1)
+
+[insta] # CMP using Insta Demo CA
+# Message transfer
+server = pki.certificate.fi:8700
+# proxy = # set this as far as needed, e.g., http://192.168.1.1:8080
+# tls_use = 0
+path = pkix/
+
+# Server authentication
+recipient = "/C=FI/O=Insta Demo/CN=Insta Demo CA" # or set srvcert or issuer
+ignore_keyusage = 1 # potentially needed quirk
+unprotected_errors = 1 # potentially needed quirk
+extracertsout = insta.extracerts.pem
+
+# Client authentication
+ref = 3078 # user identification
+secret = pass:insta # can be used for both client and server side
+
+# Generic message options
+cmd = ir # default operation, can be overridden on cmd line with, e.g., kur
+
+# Certificate enrollment
+subject = "/CN=openssl-cmp-test"
+newkey = insta.priv.pem
+out_trusted = insta.ca.crt
+certout = insta.cert.pem
+
+[pbm] # Password-based protection for Insta CA
+# Server and client authentication
+ref = $insta::ref # 3078
+secret = $insta::secret # pass:insta
+
+[signature] # Signature-based protection for Insta CA
+# Server authentication
+trusted = insta.ca.crt # does not include keyUsage digitalSignature
+
+# Client authentication
+secret = # disable PBM
+key = $insta::newkey # insta.priv.pem
+cert = $insta::certout # insta.cert.pem
+
+[ir]
+cmd = ir
+
+[cr]
+cmd = cr
+
+[kur]
+# Certificate update
+cmd = kur
+oldcert = $insta::certout # insta.cert.pem
+
+[rr]
+# Certificate revocation
+cmd = rr
+oldcert = $insta::certout # insta.cert.pem
+
+[pkcs12]
+certBagAttr = cb_attr
+
+# Uncomment this if you need Java compatible PKCS12 files
+[cb_attr]
+#jdkTrustedKeyUsage = anyExtendedKeyUsage
+```
+
+通过修改openssl-ca.cnf中关于oqs_provider是否activate的值，观察到已经发生了改变，因此修改该文件的确可以更改openssl的配置
+![alt text](image-90.png)
+
+
+进一步地，修改opnessl-ca.cnf文件，使得优先支持添加的后量子算法。
+```bash
+[openssl_init]
+ssl_conf = ssl_sect
+
+[ssl_sect]
+system_default = system_default_sect
+
+[system_default_sect]
+Groups = kyber768:kyber1024:ctruprime653
+```
+'''bash
+hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo ip netns exec cli_ns bash
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# source /etc/profile
+root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# ./s_timer ctruprime653 10
+hxw set kex_alg success
+hxw set_verify success
+[hxw] start do tls handshake
+BIO new success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+try to connect to ssl
+[hxw] start do tls handshake
+BIO new success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+try to connect to ssl
+[hxw] start do tls handshake
+BIO new success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+try to connect to ssl
+[hxw] start do tls handshake
+BIO new success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+try to connect to ssl
+[hxw] start do tls handshake
+BIO new success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+try to connect to ssl
+[hxw] start do tls handshake
+BIO new success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+try to connect to ssl
+[hxw] start do tls handshake
+BIO new success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+try to connect to ssl
+[hxw] start do tls handshake
+BIO new success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+try to connect to ssl
+[hxw] start do tls handshake
+BIO new success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+try to connect to ssl
+[hxw] start do tls handshake
+BIO new success
+[In kem.c] Try to new ctruprime653
+[In OQS_KEM_ctruprime_653_new] start new ctruprime 653
+try to connect to ssl
+32.329436,24.411342,33.276950,29.356331,28.010750,28.600439,27.900367,27.400522,29.151252,29.639813root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# 
+
+```
+成功啦，撒花花！！！
+> 总结：40错误是由于服务端的配置造成的，而在nginx中，是无法直接配置服务端支持的kem算法的，这需要使用openssl的conf文件来进行配置(由环境变量中的OPENSSL_CONF来进行指定)
+
+存在的问题是，在liboqs集成的过程中，输出了一些信息，导致了将输出转化为测量值的错误
+![alt text](image-91.png)
