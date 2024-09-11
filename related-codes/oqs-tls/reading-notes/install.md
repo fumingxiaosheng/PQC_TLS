@@ -163,3 +163,10 @@ step3:
 在emulation-exp/cpde/kex下运行
 sudo ./setup.sh
 sudo python3 hxw_test40.py
+
+## 目录组织
+_build是oqs_provider生成的地方
+liboqs-hxw-batch是liboqs的位置
+openssl是openssl源码的位置
+.local是openssl安装的位置
+oqs-template有相关的openssl-ca.cnf
