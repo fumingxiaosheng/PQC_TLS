@@ -21,16 +21,16 @@ export OPENSSLDIR=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw/.local/ssl
 
 source /etc/profile
 ```
-
-export OPENSSL_PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw-batch/.local/bin
+oqs-provider-hxw-batch
+export OPENSSL_PATH=/home/hxw/.local/bin
 export PATH=$OPENSSL_PATH:$PATH
-export LD_LIBRARY_PATH=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw-batch/.local/lib64
-export OPENSSL_APP=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw-batch/openssl/apps/openssl
-export OPENSSL_CONF=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw-batch/scripts/openssl-ca.cnf
-export OPENSSL_MODULES=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw-batch/_build/lib
-export C_INCLUDE_PATH=$C_INCLUDE_PATH:/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw-batch/.local/include
+export LD_LIBRARY_PATH=/home/hxw/oqs-provider-hxw/.local/lib64
+export OPENSSL_APP=/home/hxw/oqs-provider-hxw/openssl/apps/openssl
+export OPENSSL_CONF=/home/hxw/oqs-provider-hxw/scripts/openssl-ca.cnf
+export OPENSSL_MODULES=/home/hxw/oqs-provider-hxw/_build/lib
+export C_INCLUDE_PATH=$C_INCLUDE_PATH:/home/hxw/oqs-provider-hxw/.local/include #和oqs-provider相关系
 
-export OPENSSLDIR=/home/hxw/Desktop/TLS-hxw/oqs-provider-hxw-batch/.local/ssl
+export OPENSSLDIR=/home/hxw/oqs-provider-hxw/.local/ssl
 
 **step3**:检查版本安装是否正确
 ``` bash
@@ -79,6 +79,9 @@ openssl s_server -cert dilithium3_srv.crt -key dilithium3_srv.key -www -tls1_3 -
 openssl s_client -groups ctruprime653 -connect 10.1.2.2:4433
 ```
 使用-connect指定服务器的ip和端口
+
+CFLAGS="-Wno-error=deprecated-declarations" ./configure --prefix=/home/hxw/TLS/benchmark-platform/nginx-1.17.5/hxw_nginx --with-debug --with-http_ssl_module --with-openssl=/home/hxw/oqs-provider-hxw/.local --with-cc-opt="-I /home/hxw/oqs-provider-hxw/.local/include/oqs" --with-ld-opt="-L /home/hxw/oqs-provider-hxw/.local/lib64" --without-http_gzip_module
+
 
 # nginx服务器
 step1:安装nginx服务器
@@ -150,6 +153,13 @@ system_default = system_default_sect
 [system_default_sect]
 Groups = kyber768:kyber1024:ctruprime653
 ```
+step3:
 
 
 
+## 实验过程
+配置环境变量使得openssl能够正常使用fptru653（包括在oqs-provider-hxw/scripts目录下配置openssl-ca.cnf使其支持oqs-provider且默认group中包含fptru653）
+
+在emulation-exp/cpde/kex下运行
+sudo ./setup.sh
+sudo python3 hxw_test40.py

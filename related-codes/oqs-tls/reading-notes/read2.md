@@ -3120,7 +3120,7 @@ system_default = system_default_sect
 [system_default_sect]
 Groups = kyber768:kyber1024:ctruprime653
 ```
-'''bash
+```bash
 hxw@ubuntu:~/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex$ sudo ip netns exec cli_ns bash
 root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# source /etc/profile
 root@ubuntu:/home/hxw/Desktop/TLS-hxw/benchmark-platform/emulation-exp/code/kex# ./s_timer ctruprime653 10
@@ -3184,3 +3184,363 @@ try to connect to ssl
 
 存在的问题是，在liboqs集成的过程中，输出了一些信息，导致了将输出转化为测量值的错误
 ![alt text](image-91.png)
+
+# 2024-3-28
+增加对于struprime的支持
+在generate.yml中增加sntrup761
+  -
+    family: 'ntruprime'
+    name_group: 'sntrup761'
+    nid: '0x0249'
+    nid_hybrid: '0x2F49'
+    oqs_alg: 'OQS_KEM_alg_ntruprime_sntrup761'
+## fptru
+写fptru.yml
+修改generate.yml为fptru761
+
+  -
+    family: 'fptru'
+    name_group: 'fptru761'
+    nid: '0x0247'
+    nid_hybrid: '0x2F47'
+    oqs_alg: 'OQS_KEM_alg_fptru_761'
+
+
+# 2024-3-29
+## benchmarking论文的阅读
+往返时延:x ms,为每一个veth设置x/2 ms的delay
+丢包率:y%,为每一个veth设置丢包率为y%
+
+
+使用往返时间和丢包率来模拟不同的网络环境,服务端和客户端是直连的方式
+
+s_timer中并没有使用并发的概念，而是在一个循环内重复执行measurements_to_make次的连接
+
+在外层调用的python文件中,使用了python中的pool,使得并发地执行连接,在某种程度上,池的大小反应了并发的连接数
+
+选用了四个往返延迟 '15.458ms','39.224ms','97.73ms','2.684ms'(在模拟的过程中,由于kernel的作用,可能会没有那么准备)
+
+对于每一个往返延迟,丢包率从0%-20%变化
+
+首先需要给出每一个算法的字节数
+根据一些测量的数据来佐证自己的选取的数据的可行性
+### 进程池
+
+在Python中，Pool 类是 multiprocessing 模块提供的一个工具，用于并行执行多个函数或操作。Pool 类可以创建一个进程池，其中的进程可以并行执行指定数量的任务。Pool 类的 processes 参数用于指定进程池中的进程数量。
+
+```python
+from multiprocessing import Pool
+
+# 定义一个任务函数，该函数将在进程池中并行执行
+def my_task(number):
+    return number * 2
+
+if __name__ == "__main__":
+    # 指定进程池中的进程数量
+    POOL_SIZE = 4
+    
+    # 创建进程池
+    timer_pool = Pool(processes=POOL_SIZE)
+
+    # 要并行执行的任务列表
+    numbers = [1, 2, 3, 4, 5]
+
+    # 使用进程池执行任务，并获取结果
+    results = timer_pool.map(my_task, numbers)
+
+    # 打印结果
+    print(results)
+
+    # 关闭进程池
+    timer_pool.close()
+
+    # 等待所有进程执行完毕
+    timer_pool.join()
+
+```
+
+```python
+from multiprocessing import Pool
+
+# 定义一个函数用于计算矩形的面积
+def calculate_area(length, width):
+    return length * width
+
+if __name__ == "__main__":
+    # 创建进程池
+    pool = Pool()
+
+    # 定义多个矩形的长度和宽度
+    rectangles = [(2, 3), (4, 5), (6, 7)]
+
+    # 使用starmap并行计算多个矩形的面积
+    areas = pool.starmap(calculate_area, rectangles)
+
+    # 打印计算结果
+    print(areas)
+
+    # 关闭进程池
+    pool.close()
+    pool.join()
+
+```
+map() 和 starmap() 都用于并行执行函数，但在处理参数方面有所不同。starmap() 更适合于需要传递多个参数给函数的情况，而 map() 则更适合于仅需单个参数的情况。
+
+## 数据分析与画图
+
+nvcc -DFPTRU_N=653 -DCUDA_TEST=1 pke.cpp poly.cpp reduce.cpp coding.cpp randombytes.cpp cbd.cpp  cpucycles.cpp speed.cpp pack.cpp kem.cpp fips202.cpp inverse.cpp test_speed.cpp poly_mul_n653q/radix_ntt_n653.cpp coding_cuda.cu poly_cuda.cu -o test_cuda653
+
+nvcc -DFPTRU_N=653 -DCUDA_TEST=0 test_kem.cpp pke.cpp poly.cpp reduce.cpp coding.cpp randombytes.cpp cbd.cpp cpucycles.cpp speed.cpp pack.cpp kem.cpp fips202.cpp inverse.cpp coding_cuda.cu poly_cuda.cu poly_mul_n653q/radix_ntt_n653.cpp   -I/home/hxw/CUDA/FPTRU-KEM-main -o test_kem653_clean -v
+
+
+# 2024-4-2
+## liboqs中集成的ntruprime算法的来源和性能是什么
+![alt text](image-92.png)
+
+sntrup761应该是nist第三轮提交的一个后量子的算法
+
+[相关的源码的位置](https://github.com/jschanck/package-pqclean/tree/4d9f08c3906da8dab8eff1950072e33767c7367f/ntruprime)
+
+
+哪里用到了？是不是真的用到了相关的参数
+
+如何去分析体现带宽的优势?
+
+ctru-prime本身的优势是体现在哪里的？
+
+## 先直接测量liboqs当中集成的代码的性能
+uint64_t cpucycles
+
+先存储一下相关的环境变量
+```bash
+export OPENSSL_PATH=/home/hxw/.local/bin
+export PATH=$OPENSSL_PATH:$PATH
+export LD_LIBRARY_PATH=/home/hxw/oqs-provider-hxw/.local/lib64
+export OPENSSL_APP=/home/hxw/oqs-provider-hxw/openssl/apps/openssl
+export OPENSSL_CONF=/home/hxw/oqs-provider-hxw/scripts/openssl-ca.cnf
+export OPENSSL_MODULES=/home/hxw/oqs-provider-hxw/_build/lib
+export C_INCLUDE_PATH=$C_INCLUDE_PATH:/home/hxw/oqs-provider-hxw/.local/include
+
+export OPENSSLDIR=/home/hxw/oqs-provider-hxw/.local/ssl
+```
+
+测试得到的结果如下所示
+```bash
+hxw@qq-System-Product-Name:~/TLS/sntrup_study/liboqs-hxw-batch/_build/tests$ ./test_kem fptru653
+Testing KEM algorithms using liboqs version 0.10.0-dev
+Configuration info
+==================
+Target platform:  x86_64-Linux-6.5.0-26-generic
+Compiler:         gcc (11.4.0)
+Compile options:  [-Wa,--noexecstack;-O3;-fomit-frame-pointer;-fdata-sections;-ffunction-sections;-Wl,--gc-sections;-Wbad-function-cast]
+OQS version:      0.10.0-dev
+Git commit:       
+OpenSSL enabled:  Yes (OpenSSL 3.3.0-dev )
+AES:              NI
+SHA-2:            OpenSSL
+SHA-3:            C
+OQS build flags:  OQS_DIST_BUILD OQS_OPT_TARGET=generic CMAKE_BUILD_TYPE=Release 
+CPU exts active:  ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3
+================================================================================
+Sample computation for KEM Fptru653
+================================================================================
+keypair time 32896212 cycles/ticks
+keyencaps time 374816 cycles/ticks
+keydecaps time 683189 cycles/ticks
+shared secrets are equal
+hxw@qq-System-Product-Name:~/TLS/sntrup_study/liboqs-hxw-batch/_build/tests$ ./test_kem sntrup761
+Testing KEM algorithms using liboqs version 0.10.0-dev
+Configuration info
+==================
+Target platform:  x86_64-Linux-6.5.0-26-generic
+Compiler:         gcc (11.4.0)
+Compile options:  [-Wa,--noexecstack;-O3;-fomit-frame-pointer;-fdata-sections;-ffunction-sections;-Wl,--gc-sections;-Wbad-function-cast]
+OQS version:      0.10.0-dev
+Git commit:       
+OpenSSL enabled:  Yes (OpenSSL 3.3.0-dev )
+AES:              NI
+SHA-2:            OpenSSL
+SHA-3:            C
+OQS build flags:  OQS_DIST_BUILD OQS_OPT_TARGET=generic CMAKE_BUILD_TYPE=Release 
+CPU exts active:  ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3
+================================================================================
+Sample computation for KEM sntrup761
+================================================================================
+keypair time 34131357 cycles/ticks
+keyencaps time 529042 cycles/ticks
+keydecaps time 1317787 cycles/ticks
+shared secrets are equal
+hxw@qq-System-Product-Name:~/TLS/sntrup_study/liboqs-hxw-batch/_build/tests$ 
+```
+32896212 34131357
+
+```bash
+hxw@qq-System-Product-Name:~/TLS/sntrup_study/liboqs-hxw-batch/_build/tests$ ./test_kem fptru653
+Testing KEM algorithms using liboqs version 0.10.0-dev
+Configuration info
+==================
+Target platform:  x86_64-Linux-6.5.0-26-generic
+Compiler:         gcc (11.4.0)
+Compile options:  [-Wa,--noexecstack;-O3;-fomit-frame-pointer;-fdata-sections;-ffunction-sections;-Wl,--gc-sections;-Wbad-function-cast]
+OQS version:      0.10.0-dev
+Git commit:       
+OpenSSL enabled:  Yes (OpenSSL 3.3.0-dev )
+AES:              NI
+SHA-2:            OpenSSL
+SHA-3:            C
+OQS build flags:  OQS_DIST_BUILD OQS_OPT_TARGET=generic CMAKE_BUILD_TYPE=Release 
+CPU exts active:  ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3
+================================================================================
+Sample computation for KEM Fptru653
+================================================================================
+[hxw] fptru start keygen
+keypair time 33147030 cycles/ticks
+[hxw] fptru start encaps
+keyencaps time 376251 cycles/ticks
+[hxw] fptru start decaps
+keydecaps time 669470 cycles/ticks
+shared secrets are equal
+[hxw] fptru start decaps
+hxw@qq-System-Product-Name:~/TLS/sntrup_study/liboqs-hxw-batch/_build/tests$ ./test_kem sntrup761
+Testing KEM algorithms using liboqs version 0.10.0-dev
+Configuration info
+==================
+Target platform:  x86_64-Linux-6.5.0-26-generic
+Compiler:         gcc (11.4.0)
+Compile options:  [-Wa,--noexecstack;-O3;-fomit-frame-pointer;-fdata-sections;-ffunction-sections;-Wl,--gc-sections;-Wbad-function-cast]
+OQS version:      0.10.0-dev
+Git commit:       
+OpenSSL enabled:  Yes (OpenSSL 3.3.0-dev )
+AES:              NI
+SHA-2:            OpenSSL
+SHA-3:            C
+OQS build flags:  OQS_DIST_BUILD OQS_OPT_TARGET=generic CMAKE_BUILD_TYPE=Release 
+CPU exts active:  ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3
+================================================================================
+Sample computation for KEM sntrup761
+================================================================================
+[hxw] sntrup start keypair
+keypair time 36404988 cycles/ticks
+[hxw] sntrup start encaps
+keyencaps time 584425 cycles/ticks
+[hxw] sntrup start decaps
+keydecaps time 1324779 cycles/ticks
+shared secrets are equal
+[hxw] sntrup start decaps
+hxw@qq-System-Product-Name:~/TLS/sntrup_study/liboqs-hxw-batch/_build/tests$ 
+```
+
+```bash
+hxw@qq-System-Product-Name:~/TLS/sntrup_study/liboqs-hxw-batch/_build/tests$ ./speed_kem fptru653
+Configuration info
+==================
+Target platform:  x86_64-Linux-6.5.0-26-generic
+Compiler:         gcc (11.4.0)
+Compile options:  [-Wa,--noexecstack;-O3;-fomit-frame-pointer;-fdata-sections;-ffunction-sections;-Wl,--gc-sections;-Wbad-function-cast]
+OQS version:      0.10.0-dev
+Git commit:       
+OpenSSL enabled:  Yes (OpenSSL 3.3.0-dev )
+AES:              NI
+SHA-2:            OpenSSL
+SHA-3:            C
+OQS build flags:  OQS_DIST_BUILD OQS_OPT_TARGET=generic CMAKE_BUILD_TYPE=Release 
+CPU exts active:  ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3
+Speed test
+==========
+Started at 2024-04-02 10:43:51
+Operation                            | Iterations | Total time (s) | Time (us): mean | pop. stdev | CPU cycles: mean          | pop. stdev
+------------------------------------ | ----------:| --------------:| ---------------:| ----------:| -------------------------:| ----------:
+Fptru653                             |            |                |                 |            |                           |           
+keygen                               |       1337 |          3.000 |        2244.080 |    257.450 |                   7152302 |     820546
+encaps                               |     126363 |          3.000 |          23.741 |      0.516 |                     75593 |        833
+decaps                               |      67339 |          3.000 |          44.551 |      0.587 |                    141922 |       1213
+Ended at 2024-04-02 10:44:00
+hxw@qq-System-Product-Name:~/TLS/sntrup_study/liboqs-hxw-batch/_build/tests$ ./speed_kem sntrup761
+Configuration info
+==================
+Target platform:  x86_64-Linux-6.5.0-26-generic
+Compiler:         gcc (11.4.0)
+Compile options:  [-Wa,--noexecstack;-O3;-fomit-frame-pointer;-fdata-sections;-ffunction-sections;-Wl,--gc-sections;-Wbad-function-cast]
+OQS version:      0.10.0-dev
+Git commit:       
+OpenSSL enabled:  Yes (OpenSSL 3.3.0-dev )
+AES:              NI
+SHA-2:            OpenSSL
+SHA-3:            C
+OQS build flags:  OQS_DIST_BUILD OQS_OPT_TARGET=generic CMAKE_BUILD_TYPE=Release 
+CPU exts active:  ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3
+Speed test
+==========
+Started at 2024-04-02 10:44:08
+Operation                            | Iterations | Total time (s) | Time (us): mean | pop. stdev | CPU cycles: mean          | pop. stdev
+------------------------------------ | ----------:| --------------:| ---------------:| ----------:| -------------------------:| ----------:
+sntrup761                            |            |                |                 |            |                           |           
+keygen                               |        677 |          3.002 |        4433.985 |    679.082 |                  14132008 |    2164351
+encaps                               |      15817 |          3.000 |         189.682 |     20.744 |                    604518 |      66109
+decaps                               |       5657 |          3.000 |         530.392 |     32.650 |                   1690402 |     104067
+Ended at 2024-04-02 10:44:17
+hxw@qq-System-Product-Name:~/TLS/sntrup_study/liboqs-hxw-batch/_build/tests$ 
+```
+经过和ctru-prime论文中的数据比较,发现liboqs中使用到的sntrup761的性能介于论文中给出的两者之间
+
+TODO:应该如何定位论文里使用的代码和liboqs中使用的代码
+思考:算法性能的提升和带宽对于TLS协议的影响是什么？
+
+
+# 2024-4-12
+三种解决思路:
+1.从OPENSSLNTRU中拷贝文件出来 
+2.从liboqs中拷贝文件出来，单独编写
+3.直接在liboqs里面做
+4.利用libsntrup761里面的内容，来测试
+
+> 直观来看，4是最好的，而且不具备
+
+
+先找一个集成batch的方法,然后再进行测试
+
+在liboqs里面能不能加一个batch的池子
+
+然后再keygen的时候调用相关的参数呢？->能否区分出来
+
+# 2024-4-14
+## fptru和sntrup的性能比较
+
+### 直接在liboqs中进行测速（单位为us）
+2189=4433-2244 2倍
+166=189-23 8倍
+486=530-44 12倍
+
+>TODO:和师兄的论文里的内容是不一样的
+
+### 在TLS的实验环境下进行测速
+总体的握手时间为17ms 
+代码运行的时间占总时间的14%->其他就是在模拟丢包
+
+>带宽对于TLS传输的影响在哪里呢
+
+## 额外的知识摘要
+1.keyshare的最大容量是65535字节
+2.大部分情况下后量子密码算法性 能差距在几十微秒, 对比网络传播时延和传输时延, 建立 TLS 连接时因为密码算法的处理时延造成的性 能差距并不明显．一般情况下, 网络上一个数据包的往返时间 (round trip time, RTT) 大概在几毫秒甚至 于几百毫秒, 建立 TLS 握手则需要更大的开销, 可以预见后量子算法性能上的差距对 TLS 握手造成的影 响有限, 网络延迟越大, 这种差异的可见性 (被感知的可能性) 越小．
+
+3.MTU值为1500字节，TCP分段容纳1640字节
+>需要去确定整体分为了几个包，多少分段
+
+4.也就是说, 在高质量 (具有较小延迟和较低丢包率) 链路上, 公钥 和密文大小对握手完成时间影响极小, 影响握手性能的主要是密码算法的计算时间. 随着网络延迟的增加 和丢包率的上升, TLS 的握手开销会逐渐增大, TLS 握手几十毫秒甚至更多的开销使得后量子算法几十 微秒的差距变得不是那么明显, 网络延迟会完全隐藏算法性能的差异
+
+5.TCP/IP 的分段机制可以保证具有超长报文的后量子 TLS 1.3 协议正常运行; 网络延迟是影响 握手时间的主要因素, 它隐藏了大部分后量子算法计算性能上的差异; 对于密钥交换算法, 公钥和密文长 度的差异并没有给在 TLS 中使用它们带来实质性的影响;
+>感觉这个分析的不是很好
+
+
+
+## 额外的思考
+传统的场景下是什么样的？具体的时间等等
+
+性能差异被隐藏在了网络时延当中
+带宽差距被隐藏在了一个TCP的包中
+
+
+## 写论文的思路
+1.实验框架的搭建
+2.liboqs的集成思路(liboqs是OPENSSL和OPENSSH的底层支持库)
+
